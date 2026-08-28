@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { sendDirectEmail, testSmtpConnection } from '../services/emailService';
-import { run } from '../db/database';
+import { run, get, all } from '../db/database';
 
 const router = Router();
 
@@ -10,6 +10,20 @@ router.post('/send', async (req: Request, res: Response) => {
     const { to, subject, message, leadId } = req.body;
     if (!to || !message) {
       return res.status(400).json({ success: false, message: 'Recipient email and message body are required.' });
+    }
+
+    // Strict Duplicate Exclusion Check: Never email contacted leads again
+    if (leadId) {
+      const existing = await get<{ status: string; last_contacted_at: string }>(
+        "SELECT status, last_contacted_at FROM leads WHERE id = ? AND (status IN ('contacted', 'replied', 'converted') OR last_contacted_at IS NOT NULL)",
+        [leadId]
+      );
+      if (existing) {
+        return res.status(400).json({
+          success: false,
+          message: '🚫 This lead was already contacted in the past. Duplicate messaging is strictly blocked.',
+        });
+      }
     }
 
     const emailSubject = subject || 'Quick question regarding your business';
@@ -41,11 +55,34 @@ router.post('/batch-send', async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, message: 'No leads provided for batch email.' });
     }
 
+    // Strict Duplicate Exclusion Check for Batch
+    const contactedRecords = await all<{ id: number; contact_email?: string }>(
+      "SELECT id, contact_email FROM leads WHERE status IN ('contacted', 'replied', 'converted') OR last_contacted_at IS NOT NULL"
+    );
+    const contactedIdSet = new Set(contactedRecords.map((c) => c.id));
+    const contactedEmailSet = new Set(
+      contactedRecords
+        .filter((c) => c.contact_email)
+        .map((c) => c.contact_email!.toLowerCase().trim())
+    );
+
+    const eligibleLeads = leads.filter((l) => {
+      const email = (l.email || l.contact_email || '').toLowerCase().trim();
+      return !contactedIdSet.has(l.id) && (!email || !contactedEmailSet.has(email));
+    });
+
+    if (eligibleLeads.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'All selected leads have already been contacted in past campaigns. Duplicate messaging blocked.',
+      });
+    }
+
     // Run batch sending asynchronously in background
     (async () => {
-      console.log(`[EmailBatch] Starting background batch email for ${leads.length} leads...`);
-      for (let i = 0; i < leads.length; i++) {
-        const lead = leads[i];
+      console.log(`[EmailBatch] Starting background batch email for ${eligibleLeads.length} leads...`);
+      for (let i = 0; i < eligibleLeads.length; i++) {
+        const lead = eligibleLeads[i];
         if (!lead.email || !lead.message) continue;
 
         const subject = lead.subject || `Quick question regarding ${lead.name}`;
@@ -59,16 +96,16 @@ router.post('/batch-send', async (req: Request, res: Response) => {
         }
 
         // 3 second human delay between emails to avoid spam filters
-        if (i < leads.length - 1) {
+        if (i < eligibleLeads.length - 1) {
           await new Promise((r) => setTimeout(r, 3000));
         }
       }
-      console.log(`[EmailBatch] Finished batch email for ${leads.length} leads.`);
+      console.log(`[EmailBatch] Finished batch email for ${eligibleLeads.length} leads.`);
     })();
 
     return res.json({
       success: true,
-      message: `Dispatched batch email for ${leads.length} leads in the background!`,
+      message: `Dispatched batch email for ${eligibleLeads.length} leads in the background!`,
     });
   } catch (error: any) {
     console.error('Batch email error:', error);
