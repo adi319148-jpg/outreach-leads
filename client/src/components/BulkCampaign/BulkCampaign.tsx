@@ -392,6 +392,43 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
     }
   };
 
+  const handleOpenInGmail = async (lead?: Lead) => {
+    const targetLead = lead || activeEditingLead;
+    if (!targetLead || !targetLead.contact_email) {
+      alert('This lead does not have a contact email.');
+      return;
+    }
+
+    const messageText = targetLead.id === activeEditingLead?.id ? editingPitchText : (targetLead.pitch || '');
+    const subject = `Quick inquiry regarding ${targetLead.name}`;
+    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(
+      targetLead.contact_email
+    )}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(messageText)}`;
+
+    // Open Gmail Compose in new window
+    window.open(gmailUrl, '_blank');
+
+    // Automatically mark as contacted in CRM & remove from Bulk Queue
+    try {
+      await updateLead(targetLead.id, {
+        status: 'contacted',
+        in_campaign_queue: false,
+        markContacted: true,
+      });
+      const sentId = targetLead.id;
+      setLeads((prev) => prev.filter((l) => l.id !== sentId));
+      setSelectedIds((prev) => prev.filter((i) => i !== sentId));
+      if (activeEditingLead?.id === sentId) {
+        setActiveEditingLead(null);
+      }
+      setActionSuccessMsg(`📬 Opened in Gmail & marked as Contacted! 🚀`);
+      setTimeout(() => setActionSuccessMsg(null), 4000);
+      onCampaignUpdated();
+    } catch (err) {
+      console.error('Failed to mark contacted on gmail open:', err);
+    }
+  };
+
   const handleStartBatchEmail = async () => {
     const targetLeads = leads.filter((l) => selectedIds.includes(l.id));
     const validLeads = targetLeads
@@ -1045,35 +1082,55 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
               </div>
 
               {/* Fast 1-Click Send Strip */}
-              <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
-                <div className="text-[11px] font-semibold text-slate-300">Quick 1-Click Send:</div>
-                <div className="grid grid-cols-3 gap-2">
+              <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2.5">
+                <div className="text-[11px] font-semibold text-slate-300 flex items-center justify-between">
+                  <span>Fast 1-Click Dispatch:</span>
+                  <span className="text-[10px] text-slate-400">Zero-setup direct actions</span>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-2">
+                  {/* Open in Gmail (Zero Password / Zero Setup) */}
                   <button
-                    onClick={() => handleCopyPitch(activeEditingLead)}
-                    className="flex items-center justify-center gap-1 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700"
+                    onClick={() => handleOpenInGmail()}
+                    disabled={!activeEditingLead.contact_email}
+                    className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-md shadow-rose-600/30 transition-all disabled:opacity-40"
+                    title="1-Click Open in Gmail Web with draft pre-filled (Zero Password / Zero Setup)"
                   >
-                    <Copy className="h-3.5 w-3.5 text-sky-400" />
-                    <span>Copy</span>
+                    <Mail className="h-3.5 w-3.5" />
+                    <span>Gmail Web ↗</span>
                   </button>
 
-                  <button
-                    onClick={handleSendDirectEmailFromDrawer}
-                    disabled={sendingDirectEmail || !activeEditingLead.contact_email}
-                    className="flex items-center justify-center gap-1 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow disabled:opacity-40"
-                    title="Dispatch email automatically in the background (Zero Tabs)"
-                  >
-                    <Mail className={`h-3.5 w-3.5 ${sendingDirectEmail ? 'animate-spin' : ''}`} />
-                    <span>{sendingDirectEmail ? '...' : 'Email ⚡'}</span>
-                  </button>
-
+                  {/* Direct WhatsApp */}
                   <button
                     onClick={handleSendDirectWhatsAppFromDrawer}
                     disabled={sendingDirectWhatsApp || !activeEditingLead.phone}
-                    className="flex items-center justify-center gap-1 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow disabled:opacity-40"
+                    className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/30 transition-all disabled:opacity-40"
                     title={isWaConnected ? "Send directly from linked WhatsApp" : "Open WhatsApp chat in new window"}
                   >
                     <MessageCircle className="h-3.5 w-3.5" />
-                    <span>{sendingDirectWhatsApp ? '...' : isWaConnected ? 'WhatsApp ⚡' : 'WhatsApp ↗'}</span>
+                    <span>{sendingDirectWhatsApp ? 'Sending...' : isWaConnected ? 'WhatsApp ⚡' : 'WhatsApp ↗'}</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800/80">
+                  {/* Background SMTP Email */}
+                  <button
+                    onClick={handleSendDirectEmailFromDrawer}
+                    disabled={sendingDirectEmail || !activeEditingLead.contact_email}
+                    className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-300 text-[11px] font-semibold border border-slate-700 disabled:opacity-40"
+                    title="Dispatch email automatically in the background via SMTP (Zero Tabs)"
+                  >
+                    <Send className={`h-3 w-3 ${sendingDirectEmail ? 'animate-spin' : ''}`} />
+                    <span>{sendingDirectEmail ? 'Sending...' : 'Auto-SMTP ⚡'}</span>
+                  </button>
+
+                  {/* Copy message */}
+                  <button
+                    onClick={() => handleCopyPitch(activeEditingLead)}
+                    className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold border border-slate-700"
+                  >
+                    <Copy className="h-3 w-3 text-sky-400" />
+                    <span>Copy Text</span>
                   </button>
                 </div>
               </div>
