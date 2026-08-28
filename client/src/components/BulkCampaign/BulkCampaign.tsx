@@ -7,6 +7,7 @@ import {
   removeFromCampaignQueue,
   clearCampaignQueue,
   getWhatsAppStatus,
+  getWhatsAppAccounts,
   startWhatsAppBatchCampaign,
   getWhatsAppBatchStatus,
   stopWhatsAppBatchCampaign,
@@ -14,7 +15,7 @@ import {
   sendDirectEmailMessage,
   sendBatchEmailMessages,
 } from '../../services/api';
-import { Lead, OfferedService, PitchTone, WhatsAppStatusState, BatchWhatsAppProgress } from '../../types';
+import { Lead, OfferedService, PitchTone, WhatsAppStatusState, WhatsAppAccountState, BatchWhatsAppProgress } from '../../types';
 import {
   Send,
   Sparkles,
@@ -49,6 +50,7 @@ import {
   FileText,
   Save,
   CheckSquare,
+  Users,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -78,6 +80,7 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
 
   // WhatsApp states & Anti-Ban batch engine
   const [waState, setWaState] = useState<WhatsAppStatusState | null>(null);
+  const [waAccounts, setWaAccounts] = useState<WhatsAppAccountState[]>([]);
   const [minDelay, setMinDelay] = useState<number>(30);
   const [maxDelay, setMaxDelay] = useState<number>(45);
   const [batchProgress, setBatchProgress] = useState<BatchWhatsAppProgress | null>(null);
@@ -96,6 +99,13 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
       if (selectedIds.length === 0 && res.leads.length > 0) {
         setSelectedIds(res.leads.map((l) => l.id));
       }
+
+      try {
+        const accounts = await getWhatsAppAccounts();
+        if (Array.isArray(accounts)) {
+          setWaAccounts(accounts);
+        }
+      } catch (e) {}
 
       const wa = await getWhatsAppStatus();
       setWaState(wa);
@@ -568,7 +578,8 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
     }
   };
 
-  const isWaConnected = waState?.status === 'connected';
+  const connectedAccounts = waAccounts.filter((a) => a.status === 'connected');
+  const isWaConnected = connectedAccounts.length > 0 || waState?.status === 'connected';
   const readyPitchesCount = leads.filter((l) => Boolean(l.pitch)).length;
   const contactedCount = leads.filter((l) => l.status === 'contacted' || l.status === 'replied' || l.status === 'converted').length;
   const wordCount = editingPitchText.trim() ? editingPitchText.trim().split(/\s+/).length : 0;
@@ -579,15 +590,24 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
       <div className="p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950/60 border border-slate-700/60 shadow-xl space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-              <Send className="h-3.5 w-3.5" />
-              <span>Bulk Campaign & Multi-Channel Mass Dispatch</span>
+            <div className="inline-flex items-center gap-2 flex-wrap">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                <Send className="h-3.5 w-3.5" />
+                <span>Bulk Campaign & Multi-Channel Dispatch</span>
+              </span>
+
+              {connectedAccounts.length > 1 && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                  <Users className="h-3.5 w-3.5 text-sky-400" />
+                  <span>⚡ Multi-WhatsApp ({connectedAccounts.length} Connected - {connectedAccounts.length}x Multi-Worker Speed)</span>
+                </span>
+              )}
             </div>
             <h2 className="text-xl font-bold text-white tracking-tight mt-1">
               Campaign Queue ({leads.length} Leads)
             </h2>
             <p className="text-xs text-slate-300">
-              Select leads to compose custom messages, launch <strong>Safe WhatsApp Automation (30-45s Delay)</strong>, or open <strong>1-Click Email Stepper</strong>.
+              Select leads to compose custom messages, launch <strong>Anti-Ban Multi-WhatsApp Automation</strong>, or dispatch <strong>Direct Cold Emails</strong>.
             </p>
           </div>
 

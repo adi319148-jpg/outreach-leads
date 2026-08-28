@@ -142,7 +142,21 @@ export interface AppSettings {
   };
 }
 
+export interface WhatsAppAccountState {
+  id: string;
+  name: string;
+  status: 'disconnected' | 'qr_ready' | 'connecting' | 'connected' | 'error';
+  qrCodeDataUrl: string | null;
+  userPhone: string | null;
+  userName: string | null;
+  errorMessage: string | null;
+  lastActive: string | null;
+  killSwitchActive?: boolean;
+}
+
 export interface WhatsAppStatusState {
+  id?: string;
+  name?: string;
   status: 'disconnected' | 'qr_ready' | 'connecting' | 'connected' | 'error';
   qrCodeDataUrl: string | null;
   userPhone: string | null;
@@ -162,7 +176,8 @@ export interface BatchWhatsAppProgress {
   currentPhone: string | null;
   secondsRemaining: number;
   statusMessage: string | null;
-  logs: Array<{ time: string; leadName: string; phone: string; success: boolean; message: string }>;
+  activeAccountsCount?: number;
+  logs: Array<{ time: string; leadName: string; phone: string; success: boolean; message: string; accountName?: string }>;
 }
 
 export interface InboundReply {

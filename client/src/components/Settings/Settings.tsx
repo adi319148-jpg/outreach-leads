@@ -4,12 +4,15 @@ import {
   saveSettings,
   testApiKey,
   getWhatsAppStatus,
+  getWhatsAppAccounts,
+  connectWhatsAppAccount,
+  disconnectWhatsAppAccount,
   connectWhatsApp,
   disconnectWhatsApp,
   testSmtpSettings,
   testResendKey,
 } from '../../services/api';
-import { AppSettings, PitchTone, WhatsAppStatusState } from '../../types';
+import { AppSettings, PitchTone, WhatsAppStatusState, WhatsAppAccountState } from '../../types';
 import {
   KeyRound,
   ShieldCheck,
@@ -32,6 +35,8 @@ import {
   LogOut,
   Zap,
   Mail,
+  Plus,
+  Users,
 } from 'lucide-react';
 
 import confetti from 'canvas-confetti';
@@ -46,15 +51,20 @@ export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved }) => {
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
 
-  // WhatsApp States
-  const [waState, setWaState] = useState<WhatsAppStatusState>({
-    status: 'disconnected',
-    qrCodeDataUrl: null,
-    userPhone: null,
-    userName: null,
-    errorMessage: null,
-    lastActive: null,
-  });
+  // Multi-WhatsApp States
+  const [waAccounts, setWaAccounts] = useState<WhatsAppAccountState[]>([
+    {
+      id: 'account_1',
+      name: 'Primary WhatsApp',
+      status: 'disconnected',
+      qrCodeDataUrl: null,
+      userPhone: null,
+      userName: null,
+      errorMessage: null,
+      lastActive: null,
+    },
+  ]);
+  const [activeAccountTab, setActiveAccountTab] = useState<string>('account_1');
   const [waLoading, setWaLoading] = useState(false);
   const pollingRef = useRef<any>(null);
 
@@ -89,15 +99,18 @@ export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved }) => {
 
   const loadWhatsAppStatus = async () => {
     try {
-      const data = await getWhatsAppStatus();
-      setWaState(data);
-      if (data.status === 'qr_ready' || data.status === 'connecting') {
-        startPolling();
-      } else {
-        stopPolling();
+      const data = await getWhatsAppAccounts();
+      if (Array.isArray(data) && data.length > 0) {
+        setWaAccounts(data);
+        if (!data.some((a) => a.id === activeAccountTab)) {
+          setActiveAccountTab(data[0].id);
+        }
+        if (data.some((a) => a.status === 'qr_ready' || a.status === 'connecting')) {
+          startPolling();
+        }
       }
     } catch (err) {
-      console.error('Failed to load WhatsApp status:', err);
+      console.error('Failed to load WhatsApp accounts:', err);
     }
   };
 
@@ -105,13 +118,17 @@ export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved }) => {
     if (pollingRef.current) return;
     pollingRef.current = setInterval(async () => {
       try {
-        const data = await getWhatsAppStatus();
-        setWaState(data);
-        if (data.status === 'connected') {
-          stopPolling();
-          confetti({ particleCount: 150, spread: 90, origin: { y: 0.6 } });
-        } else if (data.status === 'error' || data.status === 'disconnected') {
-          stopPolling();
+        const data = await getWhatsAppAccounts();
+        if (Array.isArray(data) && data.length > 0) {
+          setWaAccounts(data);
+          const anyConnecting = data.some((a) => a.status === 'qr_ready' || a.status === 'connecting');
+          const hasConnected = data.some((a) => a.status === 'connected');
+          if (!anyConnecting) {
+            stopPolling();
+            if (hasConnected) {
+              confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+            }
+          }
         }
       } catch (err) {
         // ignore polling errors
@@ -126,27 +143,62 @@ export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved }) => {
     }
   };
 
-  const handleConnectWhatsApp = async (force: boolean = false) => {
+  const handleConnectWhatsApp = async (sessionId?: string, force: boolean = false) => {
+    const targetSessionId = sessionId || activeAccountTab || 'account_1';
     setWaLoading(true);
     try {
-      const data = await connectWhatsApp(force);
-      setWaState(data);
+      const currentAcc = waAccounts.find((a) => a.id === targetSessionId);
+      const accName = currentAcc?.name || `WhatsApp Account ${waAccounts.length}`;
+      await connectWhatsAppAccount(targetSessionId, accName, force);
+      await loadWhatsAppStatus();
       startPolling();
     } catch (err: any) {
-      console.error('Failed to connect WhatsApp:', err);
+      console.error('Failed to connect WhatsApp session:', err);
     } finally {
       setWaLoading(false);
     }
   };
 
-  const handleDisconnectWhatsApp = async () => {
+  const handleDisconnectWhatsApp = async (sessionId?: string) => {
+    const targetSessionId = sessionId || activeAccountTab || 'account_1';
     setWaLoading(true);
     try {
-      const data = await disconnectWhatsApp();
-      setWaState(data);
+      await disconnectWhatsAppAccount(targetSessionId);
+      await loadWhatsAppStatus();
       stopPolling();
     } catch (err: any) {
-      console.error('Failed to disconnect WhatsApp:', err);
+      console.error('Failed to disconnect WhatsApp session:', err);
+    } finally {
+      setWaLoading(false);
+    }
+  };
+
+  const handleAddNewWhatsAppAccount = async () => {
+    const nextIdx = waAccounts.length + 1;
+    const newSessionId = `account_${Date.now()}`;
+    const newName = `WhatsApp Account #${nextIdx}`;
+
+    const newAccount: WhatsAppAccountState = {
+      id: newSessionId,
+      name: newName,
+      status: 'connecting',
+      qrCodeDataUrl: null,
+      userPhone: null,
+      userName: null,
+      errorMessage: null,
+      lastActive: null,
+    };
+
+    setWaAccounts((prev) => [...prev, newAccount]);
+    setActiveAccountTab(newSessionId);
+    setWaLoading(true);
+
+    try {
+      await connectWhatsAppAccount(newSessionId, newName, true);
+      await loadWhatsAppStatus();
+      startPolling();
+    } catch (err) {
+      console.error('Failed to add new WhatsApp account:', err);
     } finally {
       setWaLoading(false);
     }
@@ -309,101 +361,177 @@ export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved }) => {
         </p>
       </div>
 
-      {/* WHATSAPP WEB IN-APP PAIRING CARD */}
-      <div className="p-6 rounded-2xl bg-gradient-to-r from-emerald-950/40 via-slate-900 to-teal-950/40 border border-emerald-500/30 shadow-xl space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      {/* MULTI-WHATSAPP WEB IN-APP PAIRING HUB */}
+      <div className="p-6 rounded-2xl bg-gradient-to-r from-emerald-950/40 via-slate-900 to-teal-950/40 border border-emerald-500/30 shadow-xl space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow">
-              <MessageCircle className="h-6 w-6" />
+              <Users className="h-6 w-6" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-white">WhatsApp Web Integration (Direct In-App Sender)</h3>
-                {waState.status === 'connected' ? (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    Connected
-                  </span>
-                ) : waState.status === 'qr_ready' ? (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/40">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
-                    QR Ready to Scan
-                  </span>
-                ) : (
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-slate-800 text-slate-400">
-                    Not Linked
-                  </span>
-                )}
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-sm font-bold text-white">Multi-WhatsApp Accounts Hub</h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                  {waAccounts.filter((a) => a.status === 'connected').length} of {waAccounts.length} Linked
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-sky-500/20 text-sky-300">
+                  Auto Round-Robin Active
+                </span>
               </div>
               <p className="text-xs text-slate-300 mt-0.5">
-                {waState.status === 'connected'
-                  ? `Linked to +${waState.userPhone} (${waState.userName || 'Account'}). 1-Click in-app direct WhatsApp sending is active!`
-                  : 'Scan QR code with your mobile WhatsApp to send outreach pitches directly without opening browser tabs.'}
+                Link multiple WhatsApp phone numbers. Batch campaigns rotate across all connected numbers for 2x–5x faster dispatch with minimal ban risk.
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {waState.status === 'connected' ? (
-              <button
-                type="button"
-                onClick={handleDisconnectWhatsApp}
-                disabled={waLoading}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 text-xs font-semibold border border-slate-700 transition-colors disabled:opacity-50"
-              >
-                <LogOut className="h-3.5 w-3.5" />
-                <span>Disconnect</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => handleConnectWhatsApp(false)}
-                disabled={waLoading || waState.status === 'connecting'}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/30 transition-all disabled:opacity-50"
-              >
-                <QrCode className={`h-4 w-4 ${waLoading ? 'animate-spin' : ''}`} />
-                <span>{waLoading ? 'Starting Client...' : waState.status === 'qr_ready' ? 'Refresh QR' : 'Link WhatsApp (Scan QR)'}</span>
-              </button>
-            )}
-          </div>
+          <button
+            type="button"
+            onClick={handleAddNewWhatsAppAccount}
+            disabled={waLoading}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/30 transition-all disabled:opacity-50 shrink-0"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Link Another Number</span>
+          </button>
         </div>
 
-        {/* QR Code Scanner Interface */}
-        {waState.status === 'qr_ready' && waState.qrCodeDataUrl && (
-          <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 flex flex-col md:flex-row items-center gap-6 animate-in fade-in">
-            <div className="p-3 bg-white rounded-2xl shadow-xl shrink-0">
-              <img
-                src={waState.qrCodeDataUrl}
-                alt="WhatsApp QR Code"
-                className="w-48 h-48 object-contain rounded-lg"
-              />
-            </div>
+        {/* Account Tabs Selector */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          {waAccounts.map((acc, index) => {
+            const isSelected = activeAccountTab === acc.id;
+            const isConnected = acc.status === 'connected';
+            const isQrReady = acc.status === 'qr_ready';
 
-            <div className="space-y-3 text-xs text-slate-300 flex-1">
-              <div className="font-bold text-white text-sm flex items-center gap-2">
-                <Smartphone className="h-4 w-4 text-emerald-400" />
-                <span>How to link your WhatsApp:</span>
-              </div>
-              <ol className="space-y-2 list-decimal list-inside text-slate-300 leading-relaxed">
-                <li>Open <strong>WhatsApp</strong> on your mobile phone.</li>
-                <li>Tap <strong>Menu (3 dots)</strong> on Android or <strong>Settings</strong> on iPhone.</li>
-                <li>Tap <strong>Linked Devices</strong> ➔ tap <strong>Link a Device</strong>.</li>
-                <li>Point your phone camera at this QR Code on screen to scan.</li>
-              </ol>
-              <div className="flex items-center gap-2 text-[11px] text-amber-300/90 pt-1">
-                <RefreshCw className="h-3.5 w-3.5 animate-spin text-emerald-400" />
-                <span>Auto-detecting scan... This page will update automatically once scanned!</span>
-              </div>
-            </div>
-          </div>
-        )}
+            return (
+              <button
+                key={acc.id}
+                type="button"
+                onClick={() => setActiveAccountTab(acc.id)}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all shrink-0 ${
+                  isSelected
+                    ? 'bg-emerald-600 text-white border-emerald-400 shadow-md shadow-emerald-600/30'
+                    : 'bg-slate-950/80 hover:bg-slate-800 text-slate-300 border-slate-800'
+                }`}
+              >
+                <MessageCircle className="h-3.5 w-3.5" />
+                <span>{acc.userPhone ? `+${acc.userPhone}` : acc.name || `WhatsApp #${index + 1}`}</span>
+                {isConnected ? (
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                ) : isQrReady ? (
+                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                ) : (
+                  <span className="w-2 h-2 rounded-full bg-slate-500" />
+                )}
+              </button>
+            );
+          })}
+        </div>
 
-        {waState.errorMessage && (
-          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center gap-2">
-            <XCircle className="h-4 w-4 shrink-0" />
-            <span>{waState.errorMessage}</span>
-          </div>
-        )}
+        {/* Selected Account Details & QR Interface */}
+        {(() => {
+          const activeAcc = waAccounts.find((a) => a.id === activeAccountTab) || waAccounts[0];
+          if (!activeAcc) return null;
+
+          return (
+            <div className="p-4 rounded-2xl bg-slate-950/90 border border-slate-800 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                      {activeAcc.name} ({activeAcc.id})
+                    </h4>
+                    {activeAcc.status === 'connected' ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        Connected (+{activeAcc.userPhone || 'OK'})
+                      </span>
+                    ) : activeAcc.status === 'qr_ready' ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+                        QR Ready to Scan
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-800 text-slate-400">
+                        Not Linked
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {activeAcc.status === 'connected'
+                      ? `Active sender: +${activeAcc.userPhone} (${activeAcc.userName || 'Linked Phone'}). Ready for round-robin dispatch.`
+                      : 'Scan QR code with this mobile phone to activate this account in the auto-sending pool.'}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {activeAcc.status === 'connected' ? (
+                    <button
+                      type="button"
+                      onClick={() => handleDisconnectWhatsApp(activeAcc.id)}
+                      disabled={waLoading}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 text-xs font-semibold border border-slate-700 transition-colors disabled:opacity-50"
+                    >
+                      <LogOut className="h-3 w-3" />
+                      <span>Disconnect</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleConnectWhatsApp(activeAcc.id, false)}
+                      disabled={waLoading || activeAcc.status === 'connecting'}
+                      className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow transition-all disabled:opacity-50"
+                    >
+                      <QrCode className={`h-3.5 w-3.5 ${waLoading ? 'animate-spin' : ''}`} />
+                      <span>
+                        {waLoading
+                          ? 'Starting...'
+                          : activeAcc.status === 'qr_ready'
+                          ? 'Refresh QR'
+                          : 'Scan QR (Pair)'}
+                      </span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* QR Code Scanner Display */}
+              {activeAcc.status === 'qr_ready' && activeAcc.qrCodeDataUrl && (
+                <div className="p-4 rounded-xl bg-slate-900 border border-emerald-500/30 flex flex-col md:flex-row items-center gap-6 animate-in fade-in">
+                  <div className="p-2.5 bg-white rounded-xl shadow-xl shrink-0">
+                    <img
+                      src={activeAcc.qrCodeDataUrl}
+                      alt="WhatsApp QR Code"
+                      className="w-44 h-44 object-contain rounded-lg"
+                    />
+                  </div>
+
+                  <div className="space-y-2 text-xs text-slate-300 flex-1">
+                    <div className="font-bold text-white text-sm flex items-center gap-2">
+                      <Smartphone className="h-4 w-4 text-emerald-400" />
+                      <span>How to link {activeAcc.name}:</span>
+                    </div>
+                    <ol className="space-y-1.5 list-decimal list-inside text-slate-300 leading-relaxed text-[11px]">
+                      <li>Open <strong>WhatsApp</strong> on your phone.</li>
+                      <li>Tap <strong>Menu / Settings</strong> ➔ <strong>Linked Devices</strong>.</li>
+                      <li>Tap <strong>Link a Device</strong> and point camera at this QR.</li>
+                    </ol>
+                    <div className="flex items-center gap-2 text-[11px] text-amber-300/90 pt-1">
+                      <RefreshCw className="h-3 w-3 animate-spin text-emerald-400" />
+                      <span>Auto-detecting scan... Auto-links once scanned!</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeAcc.errorMessage && (
+                <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center gap-2">
+                  <XCircle className="h-4 w-4 shrink-0" />
+                  <span>{activeAcc.errorMessage}</span>
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Detected Google Cloud Credentials Banner */}
@@ -569,22 +697,22 @@ export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved }) => {
           </div>
         </div>
 
-        {/* Resend Email API Configuration Card (Fast & Free) */}
+        {/* Multi-API Resend Email Pool Card */}
         <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
             <div className="flex items-center gap-3">
               <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400">
                 <Mail className="h-5 w-5" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-                  <span>Resend Email API (High Speed Auto-Sending)</span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-sm font-bold text-slate-100">Multi-API Resend Email Pool</h3>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/20 text-rose-300">
-                    Recommended ⚡
+                    Auto-Rotation & Failover Active
                   </span>
-                </h3>
-                <p className="text-xs text-slate-400">
-                  Send cold outreach emails directly in the background using your Resend API Key (3,000 Free Emails/Month, Zero Password needed).
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Add 1 or multiple Resend API keys. The engine automatically rotates keys in round-robin and fails over if quota is reached (3,000 Free Emails/Month per key).
                 </p>
               </div>
             </div>
@@ -593,10 +721,10 @@ export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved }) => {
               type="button"
               onClick={handleTestResend}
               disabled={testingResend || !settings.resendApiKey}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-all disabled:opacity-40"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-all disabled:opacity-40 shrink-0"
             >
               <RefreshCw className={`h-3 w-3 ${testingResend ? 'animate-spin' : ''}`} />
-              <span>{testingResend ? 'Testing...' : 'Test Resend API'}</span>
+              <span>{testingResend ? 'Testing Pool...' : 'Test Multi-API Pool'}</span>
             </button>
           </div>
 
@@ -617,23 +745,33 @@ export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved }) => {
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-3">
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-300">
-                Resend API Key
-              </label>
-              <input
-                type="password"
+              <div className="flex items-center justify-between text-xs">
+                <label className="font-semibold text-slate-300">
+                  Resend API Keys (Paste 1 or Multiple keys, separated by comma or new lines):
+                </label>
+                <span className="text-[11px] text-rose-400/90 font-mono">
+                  {(() => {
+                    const count = (settings.resendApiKey || '')
+                      .split(/[\n,;\s]+/)
+                      .filter((k) => k.length > 5).length;
+                    return `${count} Key(s) Configured (~${(count * 3000).toLocaleString()} Free Emails/mo)`;
+                  })()}
+                </span>
+              </div>
+              <textarea
+                rows={3}
                 value={settings.resendApiKey || ''}
                 onChange={(e) => setSettings({ ...settings, resendApiKey: e.target.value })}
-                placeholder="re_..."
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 placeholder-slate-500 focus:border-rose-500 focus:ring-1 focus:ring-rose-500 font-mono"
+                placeholder="re_firstKey_sample123&#10;re_secondKey_sample456&#10;re_thirdKey_sample789"
+                className="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 placeholder-slate-600 focus:border-rose-500 focus:ring-1 focus:ring-rose-500 font-mono leading-relaxed"
               />
             </div>
 
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-slate-300">
-                Sender Email Address / From Address
+                Sender Email / From Address
               </label>
               <input
                 type="text"

@@ -1,21 +1,35 @@
 import { Router, Request, Response } from 'express';
 import {
   getWhatsAppStatus,
-  initializeWhatsApp,
-  disconnectWhatsApp,
+  getAllWhatsAppAccounts,
+  initializeWhatsAppSession,
+  disconnectWhatsAppSession,
   sendDirectWhatsApp,
   startAntiBanBatchWhatsApp,
   getBatchWhatsAppStatus,
   stopBatchWhatsApp,
+  getConnectedSessions,
 } from '../services/whatsappService';
 import { get, run } from '../db/database';
 
 const router = Router();
 
-// 1. Get current WhatsApp status & QR code if available
-router.get('/status', async (_req: Request, res: Response) => {
+// 1. Get all WhatsApp accounts and statuses
+router.get('/accounts', async (_req: Request, res: Response) => {
   try {
-    const status = getWhatsAppStatus();
+    const accounts = getAllWhatsAppAccounts();
+    return res.json(accounts);
+  } catch (error: any) {
+    console.error('WhatsApp accounts error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// 2. Legacy/Default WhatsApp status
+router.get('/status', async (req: Request, res: Response) => {
+  try {
+    const sessionId = (req.query.sessionId as string) || 'account_1';
+    const status = getWhatsAppStatus(sessionId);
     return res.json(status);
   } catch (error: any) {
     console.error('WhatsApp status error:', error);
@@ -23,11 +37,11 @@ router.get('/status', async (_req: Request, res: Response) => {
   }
 });
 
-// 2. Initialize / Request QR Code
+// 3. Connect / Initialize a specific session or default
 router.post('/connect', async (req: Request, res: Response) => {
   try {
-    const { forceRestart = false } = req.body;
-    const status = await initializeWhatsApp(forceRestart);
+    const { sessionId = 'account_1', accountName, forceRestart = false } = req.body;
+    const status = await initializeWhatsAppSession(sessionId, accountName, forceRestart);
     return res.json(status);
   } catch (error: any) {
     console.error('WhatsApp connect error:', error);
@@ -35,10 +49,11 @@ router.post('/connect', async (req: Request, res: Response) => {
   }
 });
 
-// 3. Disconnect / Logout
-router.post('/disconnect', async (_req: Request, res: Response) => {
+// 4. Disconnect a specific session or default
+router.post('/disconnect', async (req: Request, res: Response) => {
   try {
-    const status = await disconnectWhatsApp();
+    const { sessionId = 'account_1' } = req.body;
+    const status = await disconnectWhatsAppSession(sessionId);
     return res.json(status);
   } catch (error: any) {
     console.error('WhatsApp disconnect error:', error);
@@ -46,10 +61,10 @@ router.post('/disconnect', async (_req: Request, res: Response) => {
   }
 });
 
-// 4. Send Single Direct Message from linked WhatsApp (With Double-Send Protection)
+// 5. Send Single Direct Message (Supports Round-Robin or Specific Session)
 router.post('/send', async (req: Request, res: Response) => {
   try {
-    const { phone, message, leadId } = req.body;
+    const { phone, message, leadId, sessionId } = req.body;
     if (!phone || !message) {
       return res.status(400).json({ success: false, message: 'Phone number and message are required.' });
     }
@@ -70,10 +85,9 @@ router.post('/send', async (req: Request, res: Response) => {
       }
     }
 
-    const result = await sendDirectWhatsApp(phone, message);
+    const result = await sendDirectWhatsApp(phone, message, sessionId);
 
     if (result.success && leadId) {
-      // Mark lead as contacted in database
       await run(
         "UPDATE leads SET status = 'contacted', in_campaign_queue = 0, last_contacted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
         [leadId]
@@ -91,15 +105,15 @@ router.post('/send', async (req: Request, res: Response) => {
   }
 });
 
-// 5. Start Anti-Ban Batch Campaign (30-45s Delay)
+// 6. Start Multi-WhatsApp Anti-Ban Batch Campaign
 router.post('/batch-start', async (req: Request, res: Response) => {
   try {
-    const { leads, minDelaySeconds = 30, maxDelaySeconds = 45 } = req.body;
+    const { leads, minDelaySeconds = 30, maxDelaySeconds = 45, allowedSessionIds } = req.body;
     if (!Array.isArray(leads) || leads.length === 0) {
       return res.status(400).json({ success: false, message: 'No leads provided.' });
     }
 
-    const result = await startAntiBanBatchWhatsApp(leads, minDelaySeconds, maxDelaySeconds);
+    const result = await startAntiBanBatchWhatsApp(leads, minDelaySeconds, maxDelaySeconds, allowedSessionIds);
     return res.json(result);
   } catch (error: any) {
     console.error('WhatsApp batch start error:', error);
@@ -107,7 +121,7 @@ router.post('/batch-start', async (req: Request, res: Response) => {
   }
 });
 
-// 6. Get Anti-Ban Batch Campaign Live Status / Countdown
+// 7. Get Anti-Ban Batch Campaign Live Status / Countdown
 router.get('/batch-status', async (_req: Request, res: Response) => {
   try {
     const status = getBatchWhatsAppStatus();
@@ -118,7 +132,7 @@ router.get('/batch-status', async (_req: Request, res: Response) => {
   }
 });
 
-// 7. Stop / Cancel Anti-Ban Batch Campaign
+// 8. Stop / Cancel Anti-Ban Batch Campaign
 router.post('/batch-stop', async (_req: Request, res: Response) => {
   try {
     const result = stopBatchWhatsApp();

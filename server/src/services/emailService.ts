@@ -7,6 +7,25 @@ export interface EmailSendResult {
   message: string;
   messageId?: string;
   provider?: 'resend' | 'smtp';
+  activeKeyPreview?: string;
+}
+
+let currentResendKeyIndex = 0;
+
+export async function parseResendKeys(customRaw?: string): Promise<string[]> {
+  const raw = customRaw !== undefined ? customRaw : ((await getSetting('resendApiKey')) || process.env.RESEND_API_KEY || '');
+  if (!raw) return [];
+  return raw
+    .split(/[\n,;\s]+/)
+    .map((k) => k.trim())
+    .filter((k) => k.length > 5);
+}
+
+export function getNextResendKey(keys: string[]): { key: string; index: number } {
+  if (keys.length === 0) return { key: '', index: 0 };
+  const index = currentResendKeyIndex % keys.length;
+  currentResendKeyIndex = (currentResendKeyIndex + 1) % keys.length;
+  return { key: keys[index], index };
 }
 
 export async function getEmailTransporter(customConfig?: {
@@ -22,7 +41,7 @@ export async function getEmailTransporter(customConfig?: {
   const secure = port === 465;
 
   if (!user || !pass) {
-    throw new Error('Email credentials are not configured. Please enter Resend API Key or Gmail/SMTP credentials in Settings.');
+    throw new Error('Email credentials are not configured. Please enter Resend API Key(s) or Gmail/SMTP credentials in Settings.');
   }
 
   return nodemailer.createTransport({
@@ -45,51 +64,61 @@ export async function sendDirectEmail(
     return { success: false, message: `Invalid recipient email address: ${to}` };
   }
 
-  const resendApiKey = (await getSetting('resendApiKey')) || process.env.RESEND_API_KEY;
+  const resendKeys = await parseResendKeys();
   const resendFrom = (await getSetting('resendFromEmail')) || 'onboarding@resend.dev';
 
-  // 1. Priority 1: High-Speed Resend API
-  if (resendApiKey && resendApiKey.trim()) {
-    try {
-      console.log(`[EmailService] Dispatching email to ${to} via Resend API...`);
-      const fromAddress = resendFrom.includes('<') ? resendFrom : `Outreach Engine <${resendFrom}>`;
-      
-      const response = await axios.post(
-        'https://api.resend.com/emails',
-        {
-          from: fromAddress,
-          to: [to.trim()],
-          subject,
-          text: body,
-          html: `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #1e293b; white-space: pre-wrap;">${body}</div>`,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${resendApiKey.trim()}`,
-            'Content-Type': 'application/json',
+  // 1. Priority 1: Multi-Key Round-Robin Resend Pool
+  if (resendKeys.length > 0) {
+    const fromAddress = resendFrom.includes('<') ? resendFrom : `Outreach Engine <${resendFrom}>`;
+    let lastErrorMsg = '';
+
+    // Attempt through available keys in pool
+    for (let attempt = 0; attempt < resendKeys.length; attempt++) {
+      const { key: activeKey, index: keyIdx } = getNextResendKey(resendKeys);
+      const keyPreview = `${activeKey.slice(0, 7)}...${activeKey.slice(-4)}`;
+
+      try {
+        console.log(`[EmailService] 🚀 Dispatching email to ${to} via Resend Key #${keyIdx + 1} (${keyPreview})...`);
+
+        const response = await axios.post(
+          'https://api.resend.com/emails',
+          {
+            from: fromAddress,
+            to: [to.trim()],
+            subject,
+            text: body,
+            html: `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #1e293b; white-space: pre-wrap;">${body}</div>`,
           },
-          timeout: 12000,
-        }
-      );
+          {
+            headers: {
+              Authorization: `Bearer ${activeKey.trim()}`,
+              'Content-Type': 'application/json',
+            },
+            timeout: 12000,
+          }
+        );
 
-      const msgId = response.data?.id;
-      console.log(`[EmailService] ✅ Resend email dispatched successfully to ${to}! MessageId: ${msgId}`);
+        const msgId = response.data?.id;
+        console.log(`[EmailService] ✅ Email sent to ${to} via Resend Key #${keyIdx + 1}! ID: ${msgId}`);
 
-      return {
-        success: true,
-        message: `Email dispatched successfully to ${to} via Resend API!`,
-        messageId: msgId,
-        provider: 'resend',
-      };
-    } catch (err: any) {
-      console.error('[EmailService] Resend API error:', err.response?.data || err.message);
-      const errMsg = err.response?.data?.message || err.message || 'Resend email dispatch failed';
-      
-      // If SMTP is not configured, return Resend error
-      const smtpUser = await getSetting('smtpUser');
-      if (!smtpUser) {
-        return { success: false, message: `Resend error: ${errMsg}` };
+        return {
+          success: true,
+          message: `Email dispatched successfully to ${to} via Resend Key #${keyIdx + 1}!`,
+          messageId: msgId,
+          provider: 'resend',
+          activeKeyPreview: keyPreview,
+        };
+      } catch (err: any) {
+        lastErrorMsg = err.response?.data?.message || err.message || 'Resend dispatch failed';
+        console.warn(`[EmailService] ⚠️ Resend Key #${keyIdx + 1} (${keyPreview}) failed:`, lastErrorMsg);
+        // Continue to next key in pool
       }
+    }
+
+    // If all Resend keys in pool failed, check if SMTP is available
+    const smtpUser = await getSetting('smtpUser');
+    if (!smtpUser) {
+      return { success: false, message: `All ${resendKeys.length} Resend API keys in pool failed. Last error: ${lastErrorMsg}` };
     }
   }
 
@@ -118,47 +147,67 @@ export async function sendDirectEmail(
     console.error(`[EmailService] SMTP error sending email to ${to}:`, err.message || err);
     return {
       success: false,
-      message: err.message || 'Failed to send email via Resend or SMTP.',
+      message: err.message || 'Failed to send email via Resend pool or SMTP.',
     };
   }
 }
 
-export async function testResendConnection(apiKey?: string): Promise<{ success: boolean; message: string }> {
-  const key = apiKey || (await getSetting('resendApiKey')) || process.env.RESEND_API_KEY;
-  if (!key || !key.trim()) {
-    return { success: false, message: 'Resend API Key is required.' };
+export async function testResendConnection(apiKeyInput?: string): Promise<{
+  success: boolean;
+  message: string;
+  totalKeys?: number;
+  validKeys?: number;
+}> {
+  const keys = await parseResendKeys(apiKeyInput);
+  if (keys.length === 0) {
+    return { success: false, message: 'No Resend API keys provided.' };
   }
 
-  try {
-    const response = await axios.post(
-      'https://api.resend.com/emails',
-      {
-        from: 'Outreach Engine <onboarding@resend.dev>',
-        to: ['delivered@resend.dev'],
-        subject: 'Resend API Verification Ping',
-        text: 'Your Resend API Key is active and verified for cold email outreach.',
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${key.trim()}`,
-          'Content-Type': 'application/json',
+  let validCount = 0;
+  const verifiedPreviews: string[] = [];
+
+  for (const k of keys) {
+    try {
+      const response = await axios.post(
+        'https://api.resend.com/emails',
+        {
+          from: 'Outreach Engine <onboarding@resend.dev>',
+          to: ['delivered@resend.dev'],
+          subject: 'Resend Multi-Key Verification Ping',
+          text: 'Key verified for multi-account cold outreach.',
         },
-        timeout: 10000,
+        {
+          headers: {
+            Authorization: `Bearer ${k.trim()}`,
+            'Content-Type': 'application/json',
+          },
+          timeout: 10000,
+        }
+      );
+
+      if (response.data?.id) {
+        validCount++;
+        verifiedPreviews.push(`${k.slice(0, 7)}...`);
       }
-    );
-
-    if (response.data?.id) {
-      return {
-        success: true,
-        message: '✅ Resend API Key verified & 100% active! (Ready for background cold emails)',
-      };
+    } catch (err: any) {
+      console.warn(`[Resend Test] Key ${k.slice(0, 7)}... failed:`, err.response?.data?.message || err.message);
     }
-
-    return { success: true, message: 'Resend API Key accepted!' };
-  } catch (err: any) {
-    const msg = err.response?.data?.message || err.message || 'Resend verification failed';
-    return { success: false, message: `Resend verification error: ${msg}` };
   }
+
+  if (validCount > 0) {
+    const totalCapacity = validCount * 3000;
+    return {
+      success: true,
+      totalKeys: keys.length,
+      validKeys: validCount,
+      message: `✅ Multi-API Pool Active! ${validCount} of ${keys.length} Resend Keys Verified (~${totalCapacity.toLocaleString()} Free Emails/Month Capacity) 🚀`,
+    };
+  }
+
+  return {
+    success: false,
+    message: `❌ None of the ${keys.length} Resend API keys could be verified. Check your key strings.`,
+  };
 }
 
 export async function testSmtpConnection(customConfig?: {

@@ -8,6 +8,7 @@ import {
   PlaceSearchResult,
   YouTubeSearchResult,
   WhatsAppStatusState,
+  WhatsAppAccountState,
   BatchWhatsAppProgress,
   InboundReply,
 } from '../types';
@@ -156,19 +157,36 @@ export const toggleEmergencyKillSwitch = async (
 };
 
 // WhatsApp API Methods
-export const getWhatsAppStatus = async (): Promise<WhatsAppStatusState> => {
-  const res = await api.get<WhatsAppStatusState>('/whatsapp/status');
+export const getWhatsAppAccounts = async (): Promise<WhatsAppAccountState[]> => {
+  const res = await api.get<WhatsAppAccountState[]>('/whatsapp/accounts');
+  return res.data;
+};
+
+export const getWhatsAppStatus = async (sessionId: string = 'account_1'): Promise<WhatsAppStatusState> => {
+  const res = await api.get<WhatsAppStatusState>(`/whatsapp/status?sessionId=${sessionId}`);
+  return res.data;
+};
+
+export const connectWhatsAppAccount = async (
+  sessionId: string,
+  accountName?: string,
+  forceRestart: boolean = false
+): Promise<WhatsAppAccountState> => {
+  const res = await api.post<WhatsAppAccountState>('/whatsapp/connect', { sessionId, accountName, forceRestart });
+  return res.data;
+};
+
+export const disconnectWhatsAppAccount = async (sessionId: string): Promise<WhatsAppAccountState> => {
+  const res = await api.post<WhatsAppAccountState>('/whatsapp/disconnect', { sessionId });
   return res.data;
 };
 
 export const connectWhatsApp = async (forceRestart: boolean = false): Promise<WhatsAppStatusState> => {
-  const res = await api.post<WhatsAppStatusState>('/whatsapp/connect', { forceRestart });
-  return res.data;
+  return connectWhatsAppAccount('account_1', 'Primary WhatsApp', forceRestart);
 };
 
 export const disconnectWhatsApp = async (): Promise<WhatsAppStatusState> => {
-  const res = await api.post<WhatsAppStatusState>('/whatsapp/disconnect');
-  return res.data;
+  return disconnectWhatsAppAccount('account_1');
 };
 
 export const sendDirectWhatsAppMessage = async (payload: {

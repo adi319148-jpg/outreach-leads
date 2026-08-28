@@ -134,5 +134,17 @@ export async function initDatabase() {
     )
   `);
 
-  console.log('Database tables initialized with api_cache and inbound_replies support.');
+  await run(`
+    CREATE TABLE IF NOT EXISTS whatsapp_accounts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id TEXT UNIQUE NOT NULL,
+      account_name TEXT,
+      phone_number TEXT,
+      status TEXT DEFAULT 'disconnected',
+      last_active DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  console.log('Database tables initialized with multi-whatsapp and api_cache support.');
 }
