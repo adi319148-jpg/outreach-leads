@@ -16,7 +16,7 @@ export interface YouTubeLeadResult {
   video_count: number;
   view_count: number;
   avg_views_per_video: number;
-  view_to_sub_ratio: number; // percentage e.g. 8.5%
+  view_to_sub_ratio: number;
   thumbnail_quality_status: ThumbnailQualityStatus;
   opportunity_reason: string;
   description: string;
@@ -38,43 +38,67 @@ export async function searchYouTubeChannels(
   const apiKey = await getSetting('youtubeApiKey');
 
   if (!apiKey) {
-    throw new Error('YouTube API key is missing. Please configure your API key in Settings.');
+    console.log('[YouTubeService] No API key configured. Generating comprehensive simulation channels...');
+    const mockLeads = generateMaxMockYouTube(keyword);
+    const filtered = filterYouTubeLeads(mockLeads, minSubs, maxSubs, qualityFilter);
+    return {
+      leads: filtered,
+      isMock: true,
+      message: `Simulated Search Mode: Extracted ${filtered.length} creator channels for "${keyword}". Add YouTube Data API Key in Settings for live data.`,
+    };
   }
 
   await youtubeRateLimiter.acquire();
 
   try {
-    console.log(`[YouTubeService] Querying Live YouTube Data API v3 for keyword: "${keyword}"`);
+    console.log(`[YouTubeService] Querying Live YouTube Data API v3 (Max Extraction) for: "${keyword}"`);
 
-    // 1. Search for channels
-    const searchRes = await axios.get('https://www.googleapis.com/youtube/v3/search', {
-      params: {
-        part: 'snippet',
-        type: 'channel',
-        q: keyword,
-        maxResults: 25,
-        key: apiKey,
-      },
-      timeout: 10000,
-    });
+    // Multi-query expansion to maximize channel discovery (up to 50+ channels)
+    const searchQueries = [
+      keyword,
+      `${keyword} channel`,
+      `${keyword} tips hindi`,
+    ];
 
-    const items = searchRes.data.items || [];
-    const channelIds = items
-      .map((item: any) => item.id?.channelId || item.snippet?.channelId)
-      .filter(Boolean);
+    const channelIdSet = new Set<string>();
+
+    for (const q of searchQueries) {
+      try {
+        const searchRes = await axios.get('https://www.googleapis.com/youtube/v3/search', {
+          params: {
+            part: 'snippet',
+            type: 'channel',
+            q,
+            maxResults: 25,
+            key: apiKey,
+          },
+          timeout: 10000,
+        });
+
+        const items = searchRes.data.items || [];
+        for (const item of items) {
+          const chId = item.id?.channelId || item.snippet?.channelId;
+          if (chId) channelIdSet.add(chId);
+        }
+      } catch (err: any) {
+        console.warn(`[YouTubeService] Sub-query "${q}" partial warning:`, err.message);
+      }
+    }
+
+    const channelIds = Array.from(channelIdSet).slice(0, 50);
 
     if (channelIds.length === 0) {
       return { leads: [], isMock: false };
     }
 
-    // 2. Fetch full statistics and details for all channels in one batch
+    // 2. Fetch full statistics and details for all channel IDs in one batch
     const channelsRes = await axios.get('https://www.googleapis.com/youtube/v3/channels', {
       params: {
         part: 'snippet,statistics,brandingSettings',
         id: channelIds.join(','),
         key: apiKey,
       },
-      timeout: 10000,
+      timeout: 12000,
     });
 
     const channelData = channelsRes.data.items || [];
@@ -94,9 +118,13 @@ export async function searchYouTubeChannels(
       const avgViews = vidCount > 0 ? Math.round(vCount / vidCount) : 0;
       const viewToSubRatio = subCount > 0 ? parseFloat(((avgViews / subCount) * 100).toFixed(1)) : 0;
 
-      // Extract email
+      // Extract email from channel description
       const emailMatch = desc.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
       const email = emailMatch ? emailMatch[0] : undefined;
+
+      // Extract Indian phone number if mentioned
+      const phoneMatch = desc.match(/(?:\+91[\-\s]?)?[6789]\d{9}/);
+      const phone = phoneMatch ? phoneMatch[0] : undefined;
 
       // Visual & Thumbnail Quality Assessment
       let thumbnailStatus: ThumbnailQualityStatus = 'optimized_visuals';
@@ -125,6 +153,7 @@ export async function searchYouTubeChannels(
         description: desc.slice(0, 300),
         website: `https://www.youtube.com/channel/${ch.id}`,
         contact_email: email,
+        phone,
         thumbnail_url: snippet.thumbnails?.default?.url || snippet.thumbnails?.medium?.url,
       };
     });
@@ -150,4 +179,103 @@ function filterYouTubeLeads(
     if (qualityFilter !== 'all' && lead.thumbnail_quality_status !== qualityFilter) return false;
     return true;
   });
+}
+
+function generateMaxMockYouTube(keyword: string): YouTubeLeadResult[] {
+  const cleanKeyword = keyword.trim();
+  const prefixes = [
+    'Tech & Trends with',
+    'Daily Insights by',
+    'Masterclass with',
+    'The Official',
+    'Growth Hub by',
+    'Spotlight on',
+    'Pro Studio by',
+    'NextGen',
+    'Creative Pulse with',
+    'The Real',
+    'Uncut Series with',
+    'Inside Look by',
+    'Expert Corner with',
+    'Vlog Central with',
+    'Deep Dive by',
+    'Prime Focus with',
+    'Superstar',
+    'Digital Formula with',
+    'The Fast Lane with',
+    'Elite Vision by',
+  ];
+
+  const names = [
+    'Aarav Sharma',
+    'Rohan Verma',
+    'Pooja Mehta',
+    'Kunal Kapoor',
+    'Neha Singhal',
+    'Vikram Malhotra',
+    'Ananya Iyer',
+    'Siddharth Joshi',
+    'Divya Patel',
+    'Aditya Saxena',
+    'Tanvi Deshmukh',
+    'Rahul Nambiar',
+    'Kavita Sen',
+    'Manish Choudhary',
+    'Sneha Aggarwal',
+    'Gaurav Sethi',
+    'Rhea Banerjee',
+    'Nikhil Bhatt',
+    'Shweta Roy',
+    'Harsh Vardhan',
+  ];
+
+  const results: YouTubeLeadResult[] = [];
+
+  for (let i = 0; i < 40; i++) {
+    const creatorName = names[i % names.length];
+    const prefix = prefixes[i % prefixes.length];
+    const title = `${creatorName} | ${cleanKeyword} Hub`;
+    const handle = `@${creatorName.toLowerCase().replace(/\s+/g, '')}_${(i + 1) * 7}`;
+    const subCount = Math.floor(8000 + Math.pow(i + 3, 2.8) * 80);
+    const videoCount = 35 + ((i * 19) % 240);
+    const avgViews = Math.floor(subCount * (0.08 + (i % 8) * 0.04));
+    const viewCount = avgViews * videoCount;
+    const viewToSubRatio = parseFloat(((avgViews / subCount) * 100).toFixed(1));
+
+    const email = `${creatorName.toLowerCase().replace(/\s+/g, '.')}.collabs@gmail.com`;
+    const phoneDigitStart = ['98', '97', '99', '88', '70'][i % 5];
+    const phone = `+91 ${phoneDigitStart}${Math.floor(10000000 + Math.random() * 90000000).toString().slice(0, 8)}`;
+
+    let thumbnailStatus: ThumbnailQualityStatus = 'optimized_visuals';
+    let reason = 'Channel has consistent video output and strong engagement.';
+
+    if (viewToSubRatio < 14) {
+      thumbnailStatus = 'needs_thumbnail_redesign';
+      reason = `High subscribers (${subCount.toLocaleString()}) with ${viewToSubRatio}% avg CTR. High opportunity for high-contrast CTR thumbnail redesigns.`;
+    } else {
+      thumbnailStatus = 'needs_video_editing';
+      reason = `Strong engagement (${avgViews.toLocaleString()} avg views). Prime candidate for short-form Reels & Shorts video editing.`;
+    }
+
+    results.push({
+      external_id: `mock_yt_ch_${i + 1}_${Date.now().toString(36)}`,
+      name: title,
+      category: cleanKeyword,
+      channel_handle: handle,
+      subscriber_count: subCount,
+      video_count: videoCount,
+      view_count: viewCount,
+      avg_views_per_video: avgViews,
+      view_to_sub_ratio: viewToSubRatio,
+      thumbnail_quality_status: thumbnailStatus,
+      opportunity_reason: reason,
+      description: `Official channel of ${creatorName} sharing regular ${cleanKeyword} content, tutorials, case studies, and business reviews. For brand collaborations: ${email}`,
+      website: `https://www.youtube.com/${handle}`,
+      contact_email: email,
+      phone: i % 2 === 0 ? phone : undefined,
+      thumbnail_url: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(creatorName)}`,
+    });
+  }
+
+  return results;
 }

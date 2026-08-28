@@ -77,12 +77,12 @@ export function performGapAnalysis(lead: LeadForPitch): {
     };
   }
 
-  // 4. Established business ready for scaling leads
+  // 4. Default high-demand service: 24/7 WhatsApp AI Agent
   return {
-    primaryGap: 'Scaling direct inquiries & appointments via targeted ads',
-    recommendedService: 'paid_ads',
+    primaryGap: 'Converting manual WhatsApp & customer phone queries into instant automatic bookings',
+    recommendedService: 'whatsapp_ai_agent',
     gentleObservation:
-      'Meta aur Google ads ke through daily direct quality customer inquiries multiply ki ja sakti hain.',
+      'WhatsApp par customers ki late responses ki wajah se leads drop hone se rokne ke liye 24/7 AI response zaroori hai.',
   };
 }
 
@@ -113,7 +113,7 @@ export async function generatePitch(
     for (const modelName of GEMINI_MODELS) {
       try {
         await aiRateLimiter.acquire();
-        console.log(`[Kropix AI Engine] Generating Direct Value pitch for [${targetService}] with Gemini (${modelName})...`);
+        console.log(`[Kropix AI Engine] Generating Dynamic pitch for [${targetService}] with Gemini (${modelName})...`);
         const genAI = new GoogleGenerativeAI(geminiKey);
         const model = genAI.getGenerativeModel({ model: modelName });
         const result = await model.generateContent(prompt);
@@ -135,7 +135,7 @@ export async function generatePitch(
   if (!rawPitch && claudeKey) {
     try {
       await aiRateLimiter.acquire();
-      console.log(`[Kropix AI Engine] Generating Direct Value pitch for [${targetService}] with Claude...`);
+      console.log(`[Kropix AI Engine] Generating Dynamic pitch for [${targetService}] with Claude...`);
       const anthropic = new Anthropic({ apiKey: claudeKey });
       const response = await anthropic.messages.create({
         model: 'claude-3-haiku-20240307',
@@ -153,10 +153,10 @@ export async function generatePitch(
     }
   }
 
-  // 3. Smart algorithmic fallback
+  // 3. Smart dynamic algorithmic fallback (Multi-template randomized engine)
   if (!rawPitch) {
     rawPitch = generateKropixDirectValueFallback(lead, targetService, gapResult, format, senderName);
-    provider = 'kropix-direct-value-engine';
+    provider = 'kropix-dynamic-engine';
     isMock = true;
   }
 
@@ -209,25 +209,35 @@ function buildKropixDirectValuePrompt(
     general: 'Offer a quick tailored growth concept.',
   };
 
+  const styleVariants = [
+    'STYLE 1: Direct & Practical Observer (focus on practical customer experience and immediate value preview).',
+    'STYLE 2: Genuine Peer Recognition (highlight their exact reputation and suggest 1 seamless conversion upgrade).',
+    'STYLE 3: Growth & ROI Angle (focus on how other top businesses in their city are automating inquiries).',
+    'STYLE 4: Creative Concept Pitch (focus on a tailored demo concept already prepared for them).',
+  ];
+  const chosenStyle = styleVariants[Math.floor(Math.random() * styleVariants.length)];
+
   return `You are a high-conversion, ultra-natural outreach specialist for KROPIX STUDIO reaching out to Indian business owners & creators.
 
 CLIENT DETAILS:
 ${leadContext}
 
 IDENTIFIED GAP: ${gapResult.primaryGap}
-GENTLE OBSERVATION: ${gapResult.gentleObservation}
-SERVICE & VALUE OFFER (ONLY PITCH THIS ONE):
-${serviceAngles[targetService]}
+SERVICE & VALUE OFFER: ${serviceAngles[targetService]}
+APPLIED WRITING ANGLE: ${chosenStyle}
 
-DIRECT VALUE HOOK RULES (NO TELECALLER OPENERS):
-1. DO NOT start with "Main Kropix Studio se baat kar raha hoon" or any telemarketer-style greeting.
-2. Line 1 (Hook): Start directly with genuine recognition of their business/reputation (e.g. "Hi ${lead.name} team! Aapka setup aur Google pe ${lead.rating || ''}★ reviews notice kiye—customer feedback sach mein kaafi solid hai.").
-3. Line 2 (Helpful Observation): Mention the gentle observation without being negative or shaming.
-4. Line 3 (Value Offer): Concrete concept or mockup crafted for them.
-5. Line 4 (Soft CTA): Low-friction question (e.g. "Kya main iska ek quick 30-sec preview share karun aapke sath?" or "Open to seeing a quick concept?").
-6. STRICT AGENCY RULE: NEVER USE THE WORD "FREE" OR "FREE SAMPLE/MOCKUP". Always refer to it simply as a "concept preview", "mockup preview", "sample concept", or "quick demo".
-7. Tone: Polite, respectful Indian Hinglish with "Aap".
-8. Length: Exactly 4 to 5 short lines for WhatsApp (Feels 100% human, zero AI clichés).
+CRITICAL DYNAMIC COPYWRITING & ANTI-ROBOTIC RULES:
+1. NEVER use a repetitive formula or telemarketer greeting ("Main Kropix Studio se baat kar raha hoon", "I hope this finds you well").
+2. Make every message unique in opening, flow, and phrasing.
+3. Hook variety: Use genuine recognition of their business, location, rating (${lead.rating || ''}★), or customer volume.
+4. Soft CTA variety: Use conversational closing questions like:
+   - "Kya main iska ek quick 30-sec demo preview share karun?"
+   - "Open to seeing a quick concept mockup?"
+   - "Ek short 1-page breakdown bhejun aapke sath dekhne ke liye?"
+   - "Would you be open to taking a quick look at the preview?"
+5. STRICT AGENCY RULE: NEVER USE THE WORD "FREE" OR "FREE SAMPLE/MOCKUP". Always refer to it simply as a "concept preview", "mockup preview", "sample concept", or "quick demo".
+6. Tone: Natural, friendly Indian Hinglish with "Aap" (Polite, conversational, feels 100% human).
+7. Length: Exactly 4 to 5 short lines for WhatsApp (Under 70 words).
 
 ${getGuardrailRulesDescription()}
 
@@ -245,6 +255,10 @@ function cleanPitchText(text: string): string {
   return text.replace(/^["']|["']$/g, '').trim();
 }
 
+/**
+ * Dynamic Multi-Template Algorithmic Fallback Engine
+ * Uses randomized pools of hooks, value offers, and soft CTAs so no two messages are identical.
+ */
 function generateKropixDirectValueFallback(
   lead: LeadForPitch,
   service: OfferedService,
@@ -252,33 +266,76 @@ function generateKropixDirectValueFallback(
   format: 'whatsapp' | 'email',
   senderName: string
 ): string {
-  const loc = lead.address ? lead.address.split(',')[0].trim() : 'aapke area';
+  const loc = lead.address ? lead.address.split(',')[0].trim() : 'aapke city';
+  const ratingStr = lead.rating ? `${lead.rating}★` : 'positive';
+  const variantIndex = Math.floor(Math.random() * 4);
 
   if (format === 'whatsapp') {
+    // 1. WHATSAPP AI AGENT & AI AUTOMATION
     if (service === 'whatsapp_ai_agent' || service === 'ai_automation') {
-      return `Hi ${lead.name} team! ${loc} mein aapka setup aur reviews notice kiye—kaafi solid feedback hai.\n\nAajkal bohot se customers WhatsApp pe instant inquiries bhejte hain, lekin busy hours me response late hone se leads miss ho jaati hain.\n\nHumne aapke business ke liye ek 24/7 AI WhatsApp Agent ka quick concept banaya hai jo inquiries answer karke direct appointments book karta hai—kya main ek 30-sec live demo share karun dekhne ke liye?`;
+      const templates = [
+        `Hi ${lead.name} team! ${loc} mein aapka business setup aur reviews notice kiye—customer trust kaafi solid hai.\n\nAajkal bohot se customers WhatsApp pe instant inquiries bhejte hain, lekin busy hours me response late hone se leads miss ho jaati hain.\n\nHumne aapke business ke liye ek 24/7 AI WhatsApp Agent ka quick concept design kiya hai jo automatically inquiries answer karke bookings schedule karta hai—kya main ek 30-sec live demo share karun?`,
+        `Hello ${lead.name} team! ${loc} mein aapka work dekh kar reach out kar raha hoon.\n\nEk quick observation thi: peak hours me customer messages handle karne me time lagta hai jisse direct deals drop hoti hain.\n\nHumne ek custom 24/7 WhatsApp AI Chatbot workflow draft kiya hai jo inquiries ko 5 second me answer aur qualify karta hai—kya aap open hain ek quick demo dekhne ke liye?`,
+        `Hi ${lead.name}! Google pe aapki ${ratingStr} rating dekh kar kaafi achha laga!\n\nAapke industry ke leading brands ab 24/7 WhatsApp AI Automation use kar rahe hain customer support aur appointment booking ke liye.\n\nMaine aapke brand ke liye ek tailored AI WhatsApp Agent ka sample concept banaya hai—kya main ek short preview share karun?`,
+        `Namaste ${lead.name} team! ${loc} mein aapka customer response kaafi impressive hai.\n\nHumne aapke business ke daily WhatsApp traffic ko automate karne ke liye ek smart AI Agent concept ready kiya hai jo Hindi/English dono me clients handle kar sakta hai.\n\nKya main iska ek quick 30-sec video demo share karun aapke sath?`,
+      ];
+      return templates[variantIndex % templates.length];
     }
 
+    // 2. WEBSITE DESIGN
     if (service === 'website_design') {
       if (lead.has_website === false || !lead.website) {
-        return `Hi ${lead.name} team! ${loc} mein aapka setup aur Google pe ${lead.rating ? `${lead.rating}★` : 'positive'} reviews notice kiye—customer trust sach mein kaafi badiya hai.\n\nBas ek observation thi ki Google pe direct booking website link add nahi hai jisse kayi naye clients miss ho sakte hain.\n\nHumne aapke business ke liye ek clean 1-page modern booking website ka mockup design kiya hai—kya main ek quick preview share karun dekhne ke liye?`;
+        const templates = [
+          `Hi ${lead.name} team! ${loc} mein aapka setup aur Google pe ${ratingStr} reviews notice kiye—customer trust sach mein kaafi badiya hai.\n\nBas ek observation thi ki Google pe direct booking website link add nahi hai jisse kayi naye clients miss ho sakte hain.\n\nHumne aapke business ke liye ek clean 1-page modern booking website ka mockup design kiya hai—kya main ek quick preview share karun dekhne ke liye?`,
+          `Hello ${lead.name} team! ${loc} mein aapke Google reviews kaafi solid lage!\n\nNotice kiya ki online search karne pe aapka koi direct official website page nahi khulta jisse competitors ko faayda hota hai.\n\nHumne aapke business ke liye ek premium mobile-friendly booking concept ready kiya hai—kya aap open hain ek short preview dekhne ke liye?`,
+          `Hi ${lead.name}! ${loc} mein aapka popular reputation notice kiya.\n\nAapke Google listing pe website missing hone ki wajah se direct online inquiries track nahi ho pa rahi hain.\n\nMaine aapke liye ek fast 1-page modern web design mockup prepare kiya hai—kya main iska ek 30-sec preview link bhejun?`,
+          `Namaste ${lead.name} team! Google Maps pe aapka business dekha—feedback kaafi achha hai!\n\nAapke business ko local search me top spot aur direct inquiries dilane ke liye ek modern booking landing page ka concept draft kiya hai.\n\nKya main ek quick concept preview share karun aapke sath?`,
+        ];
+        return templates[variantIndex % templates.length];
       } else {
-        return `Hi ${lead.name} team! ${loc} mein aapka work aur Google rating kaafi impressive laga!\n\nAapki website check ki aur 2 chhote mobile tweaks notice kiye jisse direct inquiries 15-20% boost ho sakti hain.\n\nMaine ek short 60-second video breakdown ready kiya hai—kya main share karun aapke sath?`;
+        const templates = [
+          `Hi ${lead.name} team! ${loc} mein aapka work aur Google rating kaafi impressive laga!\n\nAapki website check ki aur 2 chhote mobile tweaks notice kiye jisse direct inquiries 15-20% boost ho sakti hain.\n\nMaine ek short 60-second video breakdown ready kiya hai—kya main share karun aapke sath?`,
+          `Hello ${lead.name} team! Aapka setup aur website visit kiya—design achha hai!\n\nBas mobile loading speed aur direct call button placement me ek quick optimization notice ki jisse inquiry conversion double ho sakti hai.\n\nKya main ek short 1-page breakdown share karun aapke review ke liye?`,
+        ];
+        return templates[variantIndex % templates.length];
       }
     }
 
+    // 3. SHORT-FORM REELS & VIDEO EDITING
     if (service === 'content_creation_reels') {
-      return `Hi ${lead.name} team! Aapka setup aur customer reviews dekh kar kaafi achha laga.\n\nAajkal local customers 30-sec reels aur videos dekh kar sabse zyada connect karte hain.\n\nHumne aapke brand ke liye 2 high-impact short video ideas script kiye hain—kya main sample clips share karun?`;
+      const templates = [
+        `Hi ${lead.name} team! Aapka setup aur customer reviews dekh kar kaafi achha laga.\n\nAajkal local customers 30-sec reels aur videos dekh kar sabse zyada connect karte hain.\n\nHumne aapke brand ke liye 2 high-impact short video ideas script kiye hain—kya main sample clips share karun?`,
+        `Hello ${lead.name} team! ${loc} mein aapka reputation notice kiya!\n\nAapke niche me short-form video reels se organically 3x zyada walk-in customers attract ho rahe hain.\n\nMaine aapke business ke liye 2 custom viral reel concepts format kiye hain—kya main ek quick preview share karun?`,
+        `Hi ${lead.name}! Google pe aapka business aur rating dekhi—solid customer trust hai!\n\nAapke services ko highlight karne ke liye 2 aesthetic short-form promotional reels ka concept draft kiya hai.\n\nKya aap open hain ek quick sample preview dekhne ke liye?`,
+      ];
+      return templates[variantIndex % templates.length];
     }
 
+    // 4. GOOGLE MAPS LOCAL SEO
     if (service === 'gmb_local_seo') {
-      return `Hi ${lead.name} team! ${loc} mein aapka reputation kaafi solid hai!\n\nGoogle Business profile mein thodi si optimization se aap apne area ke search results mein top spots rank kar sakte hain.\n\nMaine ek 2-page local ranking audit breakdown ready kiya hai—kya main share karun aapke sath?`;
+      const templates = [
+        `Hi ${lead.name} team! ${loc} mein aapka reputation kaafi solid hai!\n\nGoogle Business profile mein thodi si optimization se aap apne area ke search results mein top spots rank kar sakte hain.\n\nMaine ek 2-page local ranking audit breakdown ready kiya hai—kya main share karun aapke sath?`,
+        `Hello ${lead.name} team! ${loc} mein local searches check kar rahe the aur aapka business notice kiya.\n\nCategory keywords aur photo optimization ke through Google Maps pe aapke business ke calls aur direction requests kaafi badh sakte hain.\n\nKya main ek short ranking audit report share karun aapke sath?`,
+      ];
+      return templates[variantIndex % templates.length];
     }
 
-    return `Hi ${lead.name} team! Aapke positive customer reviews dekh kar reach out kar raha hoon.\n\nAapke business ke liye ek customized growth concept draft kiya hai—kya aap open hain ek quick preview dekhne ke liye?`;
+    // 5. GENERAL & PAID ADS
+    const generalTemplates = [
+      `Hi ${lead.name} team! ${loc} mein aapke positive customer reviews dekh kar reach out kar raha hoon.\n\nAapke business ke liye ek customized digital growth concept draft kiya hai jisse direct customer inquiries scale ho sakein.\n\nKya aap open hain ek quick 30-sec preview dekhne ke liye?`,
+      `Hello ${lead.name} team! ${loc} mein aapka brand aur rating kaafi solid lagi.\n\nHumne aapke niche ke liye targeted customer acquisition ka ek high-converting concept layout kiya hai.\n\nKya main ek short concept overview share karun aapke sath?`,
+    ];
+    return generalTemplates[variantIndex % generalTemplates.length];
   } else {
-    // Email format
-    return `Subject: Quick idea for ${lead.name}\n\nHello Team ${lead.name},\n\nCame across ${lead.name} in ${loc}—love the solid reputation and reviews you've built!\n\n${gap.gentleObservation}\n\nWe put together a clean, modern concept tailored for your business to help boost direct customer inquiries.\n\nWould you be open to taking a quick look at a preview? Please let me know.\n\nBest regards,\nTeam Kropix Studio`;
+    // Email format with variety
+    const emailSubjects = [
+      `Quick question regarding ${lead.name}`,
+      `Growth idea for ${lead.name} in ${loc}`,
+      `Quick observation & concept for ${lead.name}`,
+    ];
+    const chosenSubject = emailSubjects[variantIndex % emailSubjects.length];
+
+    return `Subject: ${chosenSubject}\n\nHello Team ${lead.name},\n\nCame across ${lead.name} in ${loc}—love the solid reputation and reviews you've built!\n\n${gap.gentleObservation}\n\nWe put together a clean, modern concept tailored for your business to help boost direct customer inquiries.\n\nWould you be open to taking a quick look at a preview? Please let me know.\n\nBest regards,\nTeam Kropix Studio`;
   }
 }
 
@@ -342,48 +399,6 @@ export function analyzeMessageSentiment(incomingText: string): SentimentAnalysis
 }
 
 /**
- * High-Conversion Few-Shot In-Context Training for Real Client Replies (Zero "Free" Phrasing)
- */
-function getKropixTrainingKnowledge(): string {
-  return `KROPIX STUDIO - INBOUND CLIENT CONVERSATION TRAINING RULES & EXAMPLES:
-
-CRITICAL POLICY: NEVER USE THE WORD "FREE" OR "FREE SAMPLE/MOCKUP". Refer to it simply as a "concept preview", "mockup preview", "sample concept", or "quick demo".
-
-CORE OBJECTION HANDLING & SCENARIOS:
-
-Scenario 1: Client asks about PRICING ("Kitna charge karte ho?" / "Pricing kya hai?")
-Rule: Do NOT throw a random price. Explain pricing is customized to exact business scope, and offer the concept preview first so they see value upfront.
-Trained Response Style:
-"Pricing aapke exact requirement aur scope pe depend karti hai. Hum pehle ek custom mockup banakar share karte hain taaki aap design aur quality dekh sakein. Kya main mockup preview send karun?"
-
-Scenario 2: Client asks for SAMPLES / PORTFOLIO ("Sample dikhao" / "Portfolio link?")
-Rule: Direct, warm, and shares a sample or offer for their specific niche.
-Trained Response Style:
-"Zaroor! Ye hamare recent web aur branding projects ka portfolio hai: [Link]. Maine aapke business ke niche se related 2 sample concepts bhi ready kiye hain. Kya main direct WhatsApp pe share karun?"
-
-Scenario 3: Client wants to SCHEDULE A CALL ("Call pe baat karte hain" / "When can we talk?")
-Rule: Offer 2 clear, low-friction time slots (e.g. today 4 PM or tomorrow morning).
-Trained Response Style:
-"Bilkul! 5-10 minute ka quick call perfect rahega. Kya aaj 4:30 PM ya kal subah 11:30 AM aapke liye convenient rahega?"
-
-Scenario 4: Client is BUSY / SHORT ("Details bhejo" / "What is it?")
-Rule: Ultra-concise (<25 words), zero fluff, give the direct concept link.
-Trained Response Style:
-"Sure! Ye aapke business ke liye 1-page modern booking website ka quick preview link hai: [Demo Link]. Jab bhi free hon, check karke batayein."
-
-Scenario 5: Client is HESITANT ("Abhi zaroorat nahi hai / Later")
-Rule: Polite, no hard feelings, leave the door open with a soft 1-pager.
-Trained Response Style:
-"Bilkul samajh sakta hoon! Koi jaldi nahi hai. Main WhatsApp pe ek short 1-page concept chhod deta hoon, future mein jab bhi requirement ho aap check kar sakte hain."
-
-Scenario 6: Client is READY / ENTHUSIASTIC ("Haan share karo!" / "Sure send it")
-Rule: High energy, instant value delivery.
-Trained Response Style:
-"Awesome! Ye raha aapka custom 1-page booking concept preview: [Demo Link]. Dekh kar batayein kaisa laga!"
-`;
-}
-
-/**
  * Generate Smart Reply Matching Sentiment, Guardrails & Kropix Studio Training (No "Free" phrasing)
  */
 export async function generateSmartReply(
@@ -398,50 +413,53 @@ export async function generateSmartReply(
   const prompt = `You are an elite, highly trained conversational closing specialist writing on behalf of KROPIX STUDIO responding to an Indian business client's message.
 
 CLIENT NAME: ${leadName || 'Client'}
-ORIGINAL OUTREACH PITCH SENT: "${originalPitch || 'N/A'}"
-CLIENT'S INCOMING MESSAGE: "${incomingMessage}"
+CLIENT INCOMING MESSAGE: "${incomingMessage}"
+${originalPitch ? `ORIGINAL OUTREACH PITCH SENT: "${originalPitch}"` : ''}
 
-DETECTED CLIENT SENTIMENT: ${sentiment.toneLabel}
-TONE MATCHING GUIDELINES: ${sentiment.recommendedStyle}
+DETECTED SENTIMENT & GOAL:
+Sentiment: ${sentiment.sentiment} (${sentiment.toneLabel})
+Recommended Approach: ${sentiment.recommendedStyle}
 
-${getKropixTrainingKnowledge()}
+CRITICAL RULES:
+1. NEVER USE THE WORD "FREE" OR "FREE SAMPLE/MOCKUP". Refer to it as a "concept preview", "mockup preview", "sample concept", or "quick demo".
+2. Keep replies natural, respectful, and short (2 to 4 sentences).
+3. Use polite, conversational Indian Hinglish with "Aap".
+4. Focus on taking ONE low-friction next step (sharing preview or setting a 5-min call).
 
 ${getGuardrailRulesDescription()}
 
-CRITICAL RULES FOR RESPONSE:
-1. Always write in natural, conversational Indian Hinglish using respectful "Aap" (never "tum").
-2. STRICT AGENCY RULE: NEVER USE THE WORD "FREE" OR "FREE SAMPLE/MOCKUP". Refer to it simply as "custom mockup", "concept preview", "sample", or "quick demo".
-3. Match the exact training scenario from the Kropix Studio Knowledge Base above.
-4. Length: Strictly Under 45 words (WhatsApp friendly, direct, human).
-5. DO NOT make unverified price quotes ($/₹), DO NOT promise delivery dates, and DO NOT make refund claims.
-6. Move the client smoothly to the next micro-step (sharing sample mockup preview, or scheduling a quick 5-min chat).
-
-Output ONLY the exact response message text.`;
+Output ONLY the raw reply text.`;
 
   let replyText = '';
 
   if (geminiKey) {
-    try {
-      await aiRateLimiter.acquire();
-      const genAI = new GoogleGenerativeAI(geminiKey);
-      const model = genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      replyText = cleanPitchText(response.text().trim());
-    } catch (err: any) {
-      console.error('[Kropix AI Engine] Reply generation error:', err.message);
+    for (const modelName of GEMINI_MODELS) {
+      try {
+        await aiRateLimiter.acquire();
+        const genAI = new GoogleGenerativeAI(geminiKey);
+        const model = genAI.getGenerativeModel({ model: modelName });
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text().trim();
+        if (text) {
+          replyText = cleanPitchText(text);
+          break;
+        }
+      } catch (err: any) {
+        console.error(`[SmartReply Engine] Gemini error (${modelName}):`, err.message);
+      }
     }
   }
 
   if (!replyText) {
     if (sentiment.sentiment === 'enthusiastic') {
-      replyText = `Awesome! Maine aapke business ke liye ek quick concept preview ready kiya hai—kya main yahi WhatsApp pe direct link share karun?`;
+      replyText = `Awesome! Ye raha aapke business ke liye custom concept preview: [Demo Link]. Dekh kar batayein kaisa laga!`;
     } else if (sentiment.sentiment === 'skeptical') {
-      replyText = `Pricing aapke exact scope pe depend karti hai. Hum pehle ek custom mockup bana kar share karte hain taaki aap design aur quality dekh sakein. Kya main preview share karun?`;
+      replyText = `Pricing aapke exact requirement aur scope pe depend karti hai. Hum pehle ek custom mockup banakar share karte hain taaki aap design aur quality dekh sakein. Kya main preview send karun?`;
     } else if (sentiment.sentiment === 'direct_busy') {
-      replyText = `Zaroor! Ye hamare work ka ek quick 60-sec preview hai. Kya main direct link share karun?`;
+      replyText = `Sure! Ye aapke business ke liye 1-page modern concept ka quick preview link hai: [Demo Link]. Jab bhi free hon, check karke batayein.`;
     } else {
-      replyText = `Reply karne ke liye shukriya! Main aapke business ke liye 2-min ka tailored sample concept share kar sakta hoon. Kab convenient rahega aapko?`;
+      replyText = `Zaroor! Maine aapke business ke niche se related sample concept preview ready kiya hai. Kya main direct WhatsApp pe share karun?`;
     }
   }
 
