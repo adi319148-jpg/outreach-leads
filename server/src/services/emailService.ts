@@ -118,7 +118,13 @@ export async function sendDirectEmail(
     // If all Resend keys in pool failed, check if SMTP is available
     const smtpUser = await getSetting('smtpUser');
     if (!smtpUser) {
-      return { success: false, message: `All ${resendKeys.length} Resend API keys in pool failed. Last error: ${lastErrorMsg}` };
+      if (lastErrorMsg.toLowerCase().includes('own email address') || lastErrorMsg.toLowerCase().includes('verify a domain')) {
+        return {
+          success: false,
+          message: `Resend Sandbox Restriction: 'onboarding@resend.dev' can only send emails to your registered email (adi319148@gmail.com). To send cold emails to prospects: Verify a domain at resend.com/domains OR use 1-Click 'Gmail Web ↗' / SMTP.`,
+        };
+      }
+      return { success: false, message: `Resend API Error: ${lastErrorMsg}` };
     }
   }
 

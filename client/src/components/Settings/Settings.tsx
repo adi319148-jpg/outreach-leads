@@ -655,6 +655,26 @@ export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved }) => {
               />
             </div>
           </div>
+
+          <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 text-[11px] text-slate-300 space-y-1.5">
+            <div className="flex items-center gap-1.5 text-amber-300 font-semibold">
+              <Info className="h-3.5 w-3.5" />
+              <span>Resend Domain & Cold Sending Note:</span>
+            </div>
+            <p className="text-slate-400 leading-relaxed">
+              Resend free sandbox (<code className="text-rose-300">onboarding@resend.dev</code>) allows sending test emails to your registered email (<code className="text-sky-300">adi319148@gmail.com</code>).
+              To send cold outreach to external clients via API, add your custom domain at{' '}
+              <a
+                href="https://resend.com/domains"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-rose-400 hover:underline font-semibold"
+              >
+                resend.com/domains ↗
+              </a>
+              . Alternatively, use <strong>1-Click Gmail Web ↗</strong> in Bulk Campaign for 100% free unlimited sending with zero setup!
+            </p>
+          </div>
         </div>
 
         {/* Email SMTP Configuration Card */}
