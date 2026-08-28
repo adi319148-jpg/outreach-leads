@@ -125,5 +125,14 @@ export async function initDatabase() {
     )
   `);
 
-  console.log('Database tables initialized with inbound_replies support.');
+  await run(`
+    CREATE TABLE IF NOT EXISTS api_cache (
+      cache_key TEXT PRIMARY KEY,
+      data_json TEXT NOT NULL,
+      expires_at DATETIME NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  console.log('Database tables initialized with api_cache and inbound_replies support.');
 }

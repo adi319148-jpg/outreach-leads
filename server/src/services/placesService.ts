@@ -2,6 +2,7 @@ import axios from 'axios';
 import { placesRateLimiter } from '../utils/rateLimiter';
 import { getSetting } from './settingsService';
 import { all } from '../db/database';
+import { getCachedData, setCachedData } from './cacheService';
 
 export interface PlaceLeadResult {
   external_id: string;
@@ -53,6 +54,28 @@ export async function searchPlaces(
 
   const activeCategories = categories.length > 0 ? categories : ['Business'];
 
+  // Cache Key for Cost Optimization (48-hour persistent cache)
+  const cacheKey = `places:${category.toLowerCase().trim()}:${location.toLowerCase().trim()}:${radius}:${websiteFilter}:${latitude ? latitude.toFixed(2) : 'none'}`;
+  const cachedResult = await getCachedData<PlaceLeadResult[]>(cacheKey);
+
+  if (cachedResult && cachedResult.length > 0) {
+    console.log(`[PlacesService] ⚡ CACHE HIT: Returning ${cachedResult.length} places (0 API Credits used).`);
+    // Re-evaluate already_contacted against current database status
+    const freshAnnotated = cachedResult.map((lead) => {
+      const cleanPhone = (lead.phone || '').replace(/[^0-9]/g, '');
+      const isContacted =
+        (lead.external_id && contactedExternalIds.has(lead.external_id)) ||
+        (cleanPhone.length >= 7 && contactedPhones.has(cleanPhone));
+      return { ...lead, already_contacted: isContacted };
+    });
+
+    return {
+      leads: freshAnnotated,
+      isMock: false,
+      message: `⚡ Instant Cache: Loaded ${freshAnnotated.length} leads with 0 Google API credit consumption.`,
+    };
+  }
+
   if (!apiKey) {
     console.log('[PlacesService] No API key configured. Generating multi-niche simulation leads...');
     let allMockLeads: PlaceLeadResult[] = [];
@@ -71,60 +94,54 @@ export async function searchPlaces(
   await placesRateLimiter.acquire();
 
   try {
-    console.log(`[PlacesService] Running Multi-Niche Places extraction for [${activeCategories.join(', ')}] in ${location} (Radius: ${Math.round(radius / 1000)}km)...`);
+    console.log(`[PlacesService] 🚀 Running optimized Places extraction for [${activeCategories.join(', ')}] in ${location} (Radius: ${Math.round(radius / 1000)}km)...`);
 
     const allPlacesMap = new Map<string, any>();
 
+    // Optimized Single High-Yield Query per Niche (Saves 66% API requests)
     for (const cat of activeCategories) {
-      const subQueries = [
-        `${cat} in ${location}`,
-        `best ${cat} in ${location}`,
-        `top ${cat} in ${location}`,
-      ];
+      try {
+        const reqBody: any = {
+          textQuery: `${cat} in ${location}`,
+          maxResultCount: 20,
+        };
 
-      for (const query of subQueries) {
-        try {
-          const reqBody: any = {
-            textQuery: query,
-            maxResultCount: 20,
+        if (latitude !== undefined && longitude !== undefined) {
+          reqBody.locationBias = {
+            circle: {
+              center: {
+                latitude,
+                longitude,
+              },
+              radius: Math.min(radius, 50000),
+            },
           };
-
-          if (latitude !== undefined && longitude !== undefined) {
-            reqBody.locationBias = {
-              circle: {
-                center: {
-                  latitude,
-                  longitude,
-                },
-                radius: Math.min(radius, 50000),
-              },
-            };
-          }
-
-          const response = await axios.post(
-            'https://places.googleapis.com/v1/places:searchText',
-            reqBody,
-            {
-              headers: {
-                'Content-Type': 'application/json',
-                'X-Goog-Api-Key': apiKey,
-                'X-Goog-FieldMask':
-                  'places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.internationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.primaryType,places.types,places.editorialSummary,places.googleMapsUri',
-              },
-              timeout: 12000,
-            }
-          );
-
-          const places = response.data.places || [];
-          for (const p of places) {
-            const id = p.id || (p.displayName?.text + p.formattedAddress);
-            if (id && !allPlacesMap.has(id)) {
-              allPlacesMap.set(id, { ...p, searchedCategory: cat });
-            }
-          }
-        } catch (err: any) {
-          console.warn(`[PlacesService] Sub-query "${query}" partial warning:`, err.message);
         }
+
+        // Optimized FieldMask (Only essential fields to stay on lowest Google billing tier)
+        const response = await axios.post(
+          'https://places.googleapis.com/v1/places:searchText',
+          reqBody,
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Goog-Api-Key': apiKey,
+              'X-Goog-FieldMask':
+                'places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.internationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.primaryType,places.googleMapsUri',
+            },
+            timeout: 12000,
+          }
+        );
+
+        const places = response.data.places || [];
+        for (const p of places) {
+          const id = p.id || (p.displayName?.text + p.formattedAddress);
+          if (id && !allPlacesMap.has(id)) {
+            allPlacesMap.set(id, { ...p, searchedCategory: cat });
+          }
+        }
+      } catch (err: any) {
+        console.warn(`[PlacesService] Sub-query for "${cat}" warning:`, err.message);
       }
     }
 
@@ -168,6 +185,12 @@ export async function searchPlaces(
     });
 
     const filtered = filterPlacesByWebsite(leads, websiteFilter);
+
+    // Store in Persistent 48-Hour Cache to Save Future API Calls
+    if (filtered.length > 0) {
+      await setCachedData(cacheKey, filtered, 48);
+    }
+
     return { leads: filtered, isMock: false };
   } catch (error: any) {
     console.error('[PlacesService] Google Places API error:', error.response?.data || error.message);

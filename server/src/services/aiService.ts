@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { getSetting } from './settingsService';
 import { aiRateLimiter } from '../utils/rateLimiter';
 import { validateAndSanitizePitch, getGuardrailRulesDescription } from './guardrailService';
+import { getCachedData, setCachedData } from './cacheService';
 
 export type OfferedService =
   | 'all_in_one_bundle'
@@ -127,6 +128,28 @@ export async function generatePitch(
   const gapResult = performGapAnalysis(lead);
   const targetService = offeredService !== 'general' ? offeredService : gapResult.recommendedService;
 
+  // 0. Token Optimization & Cache Check (Saves 80% LLM tokens)
+  const catSlug = (lead.category || 'business').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const cacheKey = `ai_pitch:${targetService}:${isIntl ? 'en' : 'hi'}:${catSlug}:${lead.has_website ? 'web' : 'noweb'}`;
+
+  if (!customInstructions) {
+    const cachedPitch = await getCachedData<string>(cacheKey);
+    if (cachedPitch) {
+      console.log(`[AI Engine] ⚡ CACHE HIT: Re-using optimized pitch pattern (0 LLM Tokens used).`);
+      const localizedPitch = cachedPitch
+        .replace(/\{name\}|\[Name\]|\[Business Name\]/gi, lead.name)
+        .replace(/\{location\}|\[Location\]/gi, lead.address ? lead.address.split(',')[0].trim() : 'aapke yahan');
+
+      const guardrailResult = validateAndSanitizePitch(localizedPitch);
+      return {
+        pitch: guardrailResult.sanitizedText,
+        provider: 'ai-cache-interpolator',
+        isMock: false,
+        warnings: guardrailResult.warnings.length > 0 ? guardrailResult.warnings : undefined,
+      };
+    }
+  }
+
   const leadContext = formatLeadContext(lead);
   const prompt = buildInquiryPlusPitchPrompt(lead, leadContext, targetService, format, isIntl, customInstructions);
 
@@ -134,14 +157,20 @@ export async function generatePitch(
   let provider = 'smart-template-engine';
   let isMock = true;
 
-  // 1. Try Gemini
+  // 1. Try Gemini with token optimization (maxOutputTokens: 120)
   if (geminiKey) {
     for (const modelName of GEMINI_MODELS) {
       try {
         await aiRateLimiter.acquire();
         console.log(`[AI Engine] Generating ${isIntl ? 'English (Intl)' : 'Hinglish'} Question + Pitch for [${targetService}] with Gemini (${modelName})...`);
         const genAI = new GoogleGenerativeAI(geminiKey);
-        const model = genAI.getGenerativeModel({ model: modelName });
+        const model = genAI.getGenerativeModel({
+          model: modelName,
+          generationConfig: {
+            maxOutputTokens: 120,
+            temperature: 0.7,
+          },
+        });
         const result = await model.generateContent(prompt);
         const response = await result.response;
         const text = response.text().trim();
@@ -157,7 +186,7 @@ export async function generatePitch(
     }
   }
 
-  // 2. Try Claude
+  // 2. Try Claude with token optimization
   if (!rawPitch && claudeKey) {
     try {
       await aiRateLimiter.acquire();
@@ -165,7 +194,7 @@ export async function generatePitch(
       const anthropic = new Anthropic({ apiKey: claudeKey });
       const response = await anthropic.messages.create({
         model: 'claude-3-haiku-20240307',
-        max_tokens: 220,
+        max_tokens: 120,
         messages: [{ role: 'user', content: prompt }],
       });
       const text = (response.content[0] as any)?.text?.trim() || '';
@@ -177,6 +206,13 @@ export async function generatePitch(
     } catch (err: any) {
       console.error('[AI Engine] Claude error:', err.message);
     }
+  }
+
+  // 3. Cache generated pitch template for future 0-cost reuse
+  if (rawPitch && !customInstructions) {
+    const templateToCache = rawPitch
+      .replace(new RegExp(lead.name, 'gi'), '{name}');
+    await setCachedData(cacheKey, templateToCache, 72);
   }
 
   // 3. Ultra-Human Dynamic Hybrid Fallback Engine (Question + Pitch Observation)

@@ -2,6 +2,7 @@ import axios from 'axios';
 import { youtubeRateLimiter } from '../utils/rateLimiter';
 import { getSetting } from './settingsService';
 import { all } from '../db/database';
+import { getCachedData, setCachedData } from './cacheService';
 
 export type ThumbnailQualityStatus =
   | 'needs_thumbnail_redesign'
@@ -51,6 +52,29 @@ export async function searchYouTubeChannels(
     contactedRecords.filter((r) => r.contact_email).map((r) => r.contact_email?.toLowerCase())
   );
 
+  // 48-hour Persistent Cache Check (Saves 100 YouTube units per search)
+  const cacheKey = `yt:${keyword.toLowerCase().trim()}:${minSubs}:${maxSubs}:${qualityFilter}`;
+  const cachedData = await getCachedData<YouTubeLeadResult[]>(cacheKey);
+
+  if (cachedData && cachedData.length > 0) {
+    console.log(`[YouTubeService] ⚡ CACHE HIT: Returning ${cachedData.length} creators (0 Quota Units used).`);
+    const freshAnnotated = cachedData.map((lead) => {
+      const handle = (lead.channel_handle || '').toLowerCase();
+      const isContacted = Boolean(
+        (lead.external_id && contactedExtIds.has(lead.external_id)) ||
+        (handle && contactedHandles.has(handle)) ||
+        (lead.contact_email && contactedEmails.has(lead.contact_email.toLowerCase()))
+      );
+      return { ...lead, already_contacted: isContacted };
+    });
+
+    return {
+      leads: freshAnnotated,
+      isMock: false,
+      message: `⚡ Instant Cache: Loaded ${freshAnnotated.length} channels with 0 YouTube quota consumption.`,
+    };
+  }
+
   if (!apiKey) {
     console.log('[YouTubeService] No API key configured. Generating comprehensive simulation channels...');
     const mockLeads = generateMaxMockYouTube(keyword);
@@ -65,38 +89,26 @@ export async function searchYouTubeChannels(
   await youtubeRateLimiter.acquire();
 
   try {
-    console.log(`[YouTubeService] Querying Live YouTube Data API v3 (Max Extraction) for: "${keyword}"`);
-
-    // Multi-query expansion to maximize channel discovery (up to 50+ channels)
-    const searchQueries = [
-      keyword,
-      `${keyword} channel`,
-      `${keyword} tips hindi`,
-    ];
+    console.log(`[YouTubeService] 🚀 Running optimized single-call YouTube extraction for: "${keyword}"`);
 
     const channelIdSet = new Set<string>();
 
-    for (const q of searchQueries) {
-      try {
-        const searchRes = await axios.get('https://www.googleapis.com/youtube/v3/search', {
-          params: {
-            part: 'snippet',
-            type: 'channel',
-            q,
-            maxResults: 25,
-            key: apiKey,
-          },
-          timeout: 10000,
-        });
+    // 1. Single 50-Item Search Query (Consumes 100 units once instead of 300+ units)
+    const searchRes = await axios.get('https://www.googleapis.com/youtube/v3/search', {
+      params: {
+        part: 'snippet',
+        type: 'channel',
+        q: keyword,
+        maxResults: 50,
+        key: apiKey,
+      },
+      timeout: 10000,
+    });
 
-        const items = searchRes.data.items || [];
-        for (const item of items) {
-          const chId = item.id?.channelId || item.snippet?.channelId;
-          if (chId) channelIdSet.add(chId);
-        }
-      } catch (err: any) {
-        console.warn(`[YouTubeService] Sub-query "${q}" partial warning:`, err.message);
-      }
+    const items = searchRes.data.items || [];
+    for (const item of items) {
+      const chId = item.id?.channelId || item.snippet?.channelId;
+      if (chId) channelIdSet.add(chId);
     }
 
     const channelIds = Array.from(channelIdSet).slice(0, 50);
@@ -105,7 +117,7 @@ export async function searchYouTubeChannels(
       return { leads: [], isMock: false };
     }
 
-    // 2. Fetch full statistics and details for all channel IDs in one batch
+    // 2. Fetch full statistics and details for all channel IDs in one single batch (1 unit)
     const channelsRes = await axios.get('https://www.googleapis.com/youtube/v3/channels', {
       params: {
         part: 'snippet,statistics,brandingSettings',
@@ -182,6 +194,9 @@ export async function searchYouTubeChannels(
     });
 
     const filtered = filterYouTubeLeads(leads, minSubs, maxSubs, qualityFilter);
+    if (filtered.length > 0) {
+      await setCachedData(cacheKey, filtered, 48);
+    }
     return { leads: filtered, isMock: false };
   } catch (error: any) {
     console.error('[YouTubeService] YouTube API error:', error.response?.data || error.message);
