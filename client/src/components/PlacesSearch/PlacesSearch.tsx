@@ -39,6 +39,7 @@ export const PlacesSearch: React.FC<PlacesSearchProps> = ({ onLeadsSaved, onOpen
   const [radius, setRadius] = useState<number>(10000);
   const [websiteFilter, setWebsiteFilter] = useState<'all' | 'no_website' | 'has_website'>('all');
   const [selectedService, setSelectedService] = useState<OfferedService>('whatsapp_ai_agent');
+  const [hideContacted, setHideContacted] = useState(true);
 
   const [showWorldMap, setShowWorldMap] = useState(false);
   const [selectedCoords, setSelectedCoords] = useState<{ lat?: number; lng?: number; radiusKm?: number }>({
@@ -85,21 +86,36 @@ export const PlacesSearch: React.FC<PlacesSearchProps> = ({ onLeadsSaved, onOpen
     }
   };
 
+  const visibleResults = results.filter((r) => !hideContacted || !r.already_contacted);
+  const contactedCount = results.filter((r) => r.already_contacted).length;
+  const uncontactedCount = results.filter((r) => !r.already_contacted).length;
+
   const toggleSelectAll = () => {
-    const allSelected = results.every((r) => r.selected);
-    setResults(results.map((r) => ({ ...r, selected: !allSelected })));
+    const uncontactedVisible = visibleResults.filter((r) => !r.already_contacted);
+    const allSelected = uncontactedVisible.every((r) => r.selected);
+    setResults(
+      results.map((r) =>
+        r.already_contacted ? { ...r, selected: false } : { ...r, selected: !allSelected }
+      )
+    );
   };
 
   const toggleSelect = (index: number) => {
     setResults(
-      results.map((r, i) => (i === index ? { ...r, selected: !r.selected } : r))
+      results.map((r, i) => {
+        if (i === index) {
+          if (r.already_contacted) return r; // Cannot select already contacted leads
+          return { ...r, selected: !r.selected };
+        }
+        return r;
+      })
     );
   };
 
   const handleSave = async (pushToCampaign: boolean = false) => {
-    const selected = results.filter((r) => r.selected);
+    const selected = results.filter((r) => r.selected && !r.already_contacted);
     if (selected.length === 0) {
-      alert('Please check at least one lead from the table below.');
+      alert('Please check at least one uncontacted lead from the table below.');
       return;
     }
 
@@ -399,6 +415,20 @@ export const PlacesSearch: React.FC<PlacesSearchProps> = ({ onLeadsSaved, onOpen
                 🔴 {noWebsiteCount} No Website
               </span>
             )}
+
+            {contactedCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setHideContacted((prev) => !prev)}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold border transition-colors ${
+                  hideContacted
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm'
+                    : 'bg-slate-800 text-slate-400 border-slate-700'
+                }`}
+              >
+                <span>🛡️ {hideContacted ? 'Contacted Hidden' : 'Showing Contacted'} ({contactedCount})</span>
+              </button>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -443,7 +473,7 @@ export const PlacesSearch: React.FC<PlacesSearchProps> = ({ onLeadsSaved, onOpen
       )}
 
       {/* Results Table */}
-      {results.length > 0 ? (
+      {visibleResults.length > 0 ? (
         <div className="overflow-hidden rounded-2xl bg-slate-900 border border-slate-800 shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
@@ -452,7 +482,7 @@ export const PlacesSearch: React.FC<PlacesSearchProps> = ({ onLeadsSaved, onOpen
                   <th className="py-3 px-3.5 w-10 text-center">
                     <input
                       type="checkbox"
-                      checked={selectedCount === results.length && results.length > 0}
+                      checked={selectedCount === uncontactedCount && uncontactedCount > 0}
                       onChange={toggleSelectAll}
                       className="rounded border-slate-700 bg-slate-950 text-sky-500 focus:ring-0 cursor-pointer"
                     />
@@ -467,12 +497,16 @@ export const PlacesSearch: React.FC<PlacesSearchProps> = ({ onLeadsSaved, onOpen
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
-                {results.map((place, idx) => (
+                {visibleResults.map((place, idx) => (
                   <tr
                     key={idx}
                     onClick={() => toggleSelect(idx)}
-                    className={`hover:bg-slate-800/40 transition-colors cursor-pointer ${
-                      place.selected ? 'bg-sky-950/20' : ''
+                    className={`transition-colors cursor-pointer ${
+                      place.already_contacted
+                        ? 'opacity-50 bg-slate-950/40 cursor-not-allowed'
+                        : place.selected
+                        ? 'bg-sky-950/20 hover:bg-slate-800/40'
+                        : 'hover:bg-slate-800/40'
                     }`}
                   >
                     <td
@@ -484,15 +518,21 @@ export const PlacesSearch: React.FC<PlacesSearchProps> = ({ onLeadsSaved, onOpen
                     >
                       <input
                         type="checkbox"
-                        checked={place.selected}
+                        checked={Boolean(place.selected && !place.already_contacted)}
+                        disabled={Boolean(place.already_contacted)}
                         onChange={() => toggleSelect(idx)}
-                        className="rounded border-slate-700 bg-slate-950 text-sky-500 focus:ring-0 cursor-pointer"
+                        className="rounded border-slate-700 bg-slate-950 text-sky-500 focus:ring-0 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                       />
                     </td>
 
                     <td className="py-3 px-4">
-                      <div className="font-bold text-slate-100 flex items-center gap-1.5">
+                      <div className="font-bold text-slate-100 flex items-center gap-1.5 flex-wrap">
                         <span>{place.name}</span>
+                        {place.already_contacted && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
+                            🚫 Already Contacted
+                          </span>
+                        )}
                         {!place.has_website && (
                           <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" title="No Website" />
                         )}

@@ -2,7 +2,7 @@ import { Client, LocalAuth } from 'whatsapp-web.js';
 import QRCode from 'qrcode';
 import path from 'path';
 import fs from 'fs';
-import { run, get } from '../db/database';
+import { run, get, all } from '../db/database';
 
 export type WhatsAppStatus = 'disconnected' | 'qr_ready' | 'connecting' | 'connected' | 'error';
 
@@ -396,25 +396,49 @@ export async function startAntiBanBatchWhatsApp(
     };
   }
 
+  // Strict Duplicate Exclusion Check: Never message contacted leads again
+  const contactedCheck = await all<{ id: number; phone?: string }>(
+    "SELECT id, phone FROM leads WHERE status IN ('contacted', 'replied', 'converted') OR last_contacted_at IS NOT NULL"
+  );
+  const contactedIdSet = new Set(contactedCheck.map((c) => c.id));
+  const contactedPhoneSet = new Set(
+    contactedCheck
+      .filter((c) => c.phone)
+      .map((c) => c.phone!.replace(/[^0-9]/g, ''))
+      .filter((p) => p.length >= 7)
+  );
+
+  const eligibleLeads = leads.filter((l) => {
+    const clean = (l.phone || '').replace(/[^0-9]/g, '');
+    return !contactedIdSet.has(l.id) && !contactedPhoneSet.has(clean);
+  });
+
+  if (eligibleLeads.length === 0) {
+    return {
+      success: false,
+      message: 'All selected leads have already been contacted in past campaigns. Duplicate messaging is strictly prevented.',
+    };
+  }
+
   cancelBatchRequested = false;
   batchProgress = {
     isRunning: true,
     currentIndex: 0,
-    totalCount: leads.length,
+    totalCount: eligibleLeads.length,
     sentCount: 0,
     failedCount: 0,
     currentLeadName: null,
     currentPhone: null,
     secondsRemaining: 0,
-    statusMessage: `Starting Anti-Ban Campaign for ${leads.length} leads...`,
+    statusMessage: `Starting Anti-Ban Campaign for ${eligibleLeads.length} uncontacted leads...`,
     logs: [],
   };
 
   // Run in background asynchronously
   (async () => {
-    console.log(`[WhatsApp Batch] Starting campaign for ${leads.length} leads (delay: ${minDelaySeconds}-${maxDelaySeconds}s)`);
+    console.log(`[WhatsApp Batch] Starting campaign for ${eligibleLeads.length} leads (delay: ${minDelaySeconds}-${maxDelaySeconds}s)`);
 
-    for (let i = 0; i < leads.length; i++) {
+    for (let i = 0; i < eligibleLeads.length; i++) {
       if (cancelBatchRequested || isEmergencyKillSwitchActive) {
         console.log('[WhatsApp Batch] Campaign stopped by user or kill switch.');
         batchProgress.statusMessage = isEmergencyKillSwitchActive
@@ -423,7 +447,7 @@ export async function startAntiBanBatchWhatsApp(
         break;
       }
 
-      const lead = leads[i];
+      const lead = eligibleLeads[i];
       batchProgress.currentIndex = i + 1;
       batchProgress.currentLeadName = lead.name;
       batchProgress.currentPhone = lead.phone;

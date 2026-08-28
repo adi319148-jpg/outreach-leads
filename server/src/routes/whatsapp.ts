@@ -8,7 +8,7 @@ import {
   getBatchWhatsAppStatus,
   stopBatchWhatsApp,
 } from '../services/whatsappService';
-import { run } from '../db/database';
+import { get, run } from '../db/database';
 
 const router = Router();
 
@@ -46,12 +46,28 @@ router.post('/disconnect', async (_req: Request, res: Response) => {
   }
 });
 
-// 4. Send Single Direct Message from linked WhatsApp
+// 4. Send Single Direct Message from linked WhatsApp (With Double-Send Protection)
 router.post('/send', async (req: Request, res: Response) => {
   try {
     const { phone, message, leadId } = req.body;
     if (!phone || !message) {
       return res.status(400).json({ success: false, message: 'Phone number and message are required.' });
+    }
+
+    // Strict Double-Send Protection
+    if (leadId) {
+      const existing = await get(
+        "SELECT id, name, status, last_contacted_at FROM leads WHERE id = ? AND (status IN ('contacted', 'replied', 'converted') OR last_contacted_at IS NOT NULL)",
+        [leadId]
+      );
+      if (existing) {
+        await run("UPDATE leads SET in_campaign_queue = 0 WHERE id = ?", [leadId]);
+        return res.status(400).json({
+          success: false,
+          alreadyContacted: true,
+          message: `🚫 Duplicate blocked: "${existing.name}" was already contacted (${existing.status}) on ${existing.last_contacted_at || 'earlier campaign'}.`,
+        });
+      }
     }
 
     const result = await sendDirectWhatsApp(phone, message);

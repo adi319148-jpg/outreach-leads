@@ -32,6 +32,7 @@ export const YoutubeSearch: React.FC<YoutubeSearchProps> = ({ onLeadsSaved, onOp
   const [minSubs, setMinSubs] = useState<number>(10000);
   const [maxSubs, setMaxSubs] = useState<number>(50000);
   const [qualityFilter, setQualityFilter] = useState<'all' | 'needs_thumbnail_redesign' | 'needs_video_editing'>('all');
+  const [hideContacted, setHideContacted] = useState(true);
   
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<YouTubeSearchResult[]>([]);
@@ -89,21 +90,37 @@ export const YoutubeSearch: React.FC<YoutubeSearchProps> = ({ onLeadsSaved, onOp
     }
   };
 
+  const visibleResults = results.filter((r) => !hideContacted || !r.already_contacted);
+  const contactedCount = results.filter((r) => r.already_contacted).length;
+  const uncontactedCount = results.filter((r) => !r.already_contacted).length;
+  const selectedCount = results.filter((r) => r.selected && !r.already_contacted).length;
+
   const toggleSelectAll = () => {
-    const allSelected = results.every((r) => r.selected);
-    setResults(results.map((r) => ({ ...r, selected: !allSelected })));
+    const uncontactedVisible = visibleResults.filter((r) => !r.already_contacted);
+    const allSelected = uncontactedVisible.every((r) => r.selected);
+    setResults(
+      results.map((r) =>
+        r.already_contacted ? { ...r, selected: false } : { ...r, selected: !allSelected }
+      )
+    );
   };
 
   const toggleSelect = (index: number) => {
     setResults(
-      results.map((r, i) => (i === index ? { ...r, selected: !r.selected } : r))
+      results.map((r, i) => {
+        if (i === index) {
+          if (r.already_contacted) return r; // Cannot select already contacted channels
+          return { ...r, selected: !r.selected };
+        }
+        return r;
+      })
     );
   };
 
   const handleSave = async (pushToCampaign: boolean = false) => {
-    const selected = results.filter((r) => r.selected);
+    const selected = results.filter((r) => r.selected && !r.already_contacted);
     if (selected.length === 0) {
-      alert('Please check at least one creator from the results below.');
+      alert('Please check at least one uncontacted creator from the results below.');
       return;
     }
 
@@ -181,8 +198,6 @@ export const YoutubeSearch: React.FC<YoutubeSearchProps> = ({ onLeadsSaved, onOp
       setSaving(false);
     }
   };
-
-  const selectedCount = results.filter((r) => r.selected).length;
 
   const formatNumber = (num: number) => {
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
@@ -353,6 +368,20 @@ export const YoutubeSearch: React.FC<YoutubeSearchProps> = ({ onLeadsSaved, onOp
             <span className="text-xs text-rose-400 font-bold font-mono">
               {selectedCount} Selected
             </span>
+
+            {contactedCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setHideContacted((prev) => !prev)}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold border transition-colors ${
+                  hideContacted
+                    ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-sm'
+                    : 'bg-slate-800 text-slate-400 border-slate-700'
+                }`}
+              >
+                <span>🛡️ {hideContacted ? 'Contacted Hidden' : 'Showing Contacted'} ({contactedCount})</span>
+              </button>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -378,14 +407,16 @@ export const YoutubeSearch: React.FC<YoutubeSearchProps> = ({ onLeadsSaved, onOp
       )}
 
       {/* Results Cards Grid */}
-      {results.length > 0 ? (
+      {visibleResults.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {results.map((channel, idx) => (
+          {visibleResults.map((channel, idx) => (
             <div
               key={idx}
               onClick={() => toggleSelect(idx)}
               className={`p-5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between space-y-4 relative ${
-                channel.selected
+                channel.already_contacted
+                  ? 'opacity-50 bg-slate-950/40 cursor-not-allowed border-slate-800'
+                  : channel.selected
                   ? 'bg-rose-950/20 border-rose-500/80 shadow-lg ring-1 ring-rose-500/30'
                   : 'bg-slate-900 border-slate-800 hover:border-slate-700'
               }`}
@@ -406,8 +437,13 @@ export const YoutubeSearch: React.FC<YoutubeSearchProps> = ({ onLeadsSaved, onOp
                       </div>
                     )}
                     <div>
-                      <h4 className="text-sm font-bold text-slate-100 line-clamp-1">
-                        {channel.name}
+                      <h4 className="text-sm font-bold text-slate-100 line-clamp-1 flex items-center gap-1.5">
+                        <span>{channel.name}</span>
+                        {channel.already_contacted && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
+                            🚫 Contacted
+                          </span>
+                        )}
                       </h4>
                       <p className="text-xs text-rose-400 font-mono">
                         {channel.channel_handle || `@${channel.name.toLowerCase().replace(/\s+/g, '')}`}
@@ -418,10 +454,12 @@ export const YoutubeSearch: React.FC<YoutubeSearchProps> = ({ onLeadsSaved, onOp
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      toggleSelect(idx);
+                      if (!channel.already_contacted) toggleSelect(idx);
                     }}
+                    disabled={Boolean(channel.already_contacted)}
+                    className="disabled:opacity-30 disabled:cursor-not-allowed"
                   >
-                    {channel.selected ? (
+                    {channel.selected && !channel.already_contacted ? (
                       <CheckSquare className="h-4 w-4 text-rose-400" />
                     ) : (
                       <Square className="h-4 w-4 text-slate-600" />

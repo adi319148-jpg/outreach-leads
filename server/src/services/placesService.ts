@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { placesRateLimiter } from '../utils/rateLimiter';
 import { getSetting } from './settingsService';
+import { all } from '../db/database';
 
 export interface PlaceLeadResult {
   external_id: string;
@@ -16,6 +17,7 @@ export interface PlaceLeadResult {
   description?: string;
   google_maps_url?: string;
   selected?: boolean;
+  already_contacted?: boolean;
 }
 
 export async function searchPlaces(
@@ -27,6 +29,21 @@ export async function searchPlaces(
   longitude?: number
 ): Promise<{ leads: PlaceLeadResult[]; isMock: boolean; message?: string }> {
   const apiKey = await getSetting('googlePlacesApiKey');
+
+  // Query all already-contacted leads from DB to exclude/flag them permanently
+  const contactedRecords = await all<{ external_id?: string; phone?: string; name?: string }>(
+    "SELECT external_id, phone, name FROM leads WHERE status IN ('contacted', 'replied', 'converted') OR last_contacted_at IS NOT NULL"
+  );
+  const contactedExternalIds = new Set<string>(
+    contactedRecords
+      .map((r) => r.external_id || '')
+      .filter((id): id is string => Boolean(id))
+  );
+  const contactedPhones = new Set<string>(
+    contactedRecords
+      .map((r) => (r.phone || '').replace(/[^0-9]/g, ''))
+      .filter((p): p is string => p.length >= 7)
+  );
 
   // Split multiple comma-separated niches (e.g. "Travel Agencies, Dental Clinics, Real Estate")
   const categories = category
@@ -40,7 +57,7 @@ export async function searchPlaces(
     console.log('[PlacesService] No API key configured. Generating multi-niche simulation leads...');
     let allMockLeads: PlaceLeadResult[] = [];
     for (const cat of activeCategories) {
-      const mockLeads = generateMaxMockPlaces(cat, location);
+      const mockLeads = generateMaxMockPlaces(cat, location, contactedExternalIds, contactedPhones);
       allMockLeads = allMockLeads.concat(mockLeads);
     }
     const filtered = filterPlacesByWebsite(allMockLeads, websiteFilter);
@@ -125,12 +142,20 @@ export async function searchPlaces(
         p.googleMapsUri ||
         `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(businessName + ' ' + address)}`;
 
+      const rawPhone = p.nationalPhoneNumber || p.internationalPhoneNumber || '';
+      const cleanPhone = rawPhone.replace(/[^0-9]/g, '');
+      const externalId = p.id || `pl_${Math.random().toString(36).slice(2, 9)}`;
+
+      const isAlreadyContacted =
+        (externalId && contactedExternalIds.has(externalId)) ||
+        (cleanPhone.length >= 7 && contactedPhones.has(cleanPhone));
+
       return {
-        external_id: p.id || `pl_${Math.random().toString(36).slice(2, 9)}`,
+        external_id: externalId,
         name: businessName,
         category: p.primaryType || (p.types && p.types[0]) || p.searchedCategory || category,
         address,
-        phone: p.nationalPhoneNumber || p.internationalPhoneNumber || '',
+        phone: rawPhone,
         website: website || undefined,
         has_website,
         instagram_handle: `@${nameSlug}_${citySlug}`,
@@ -138,6 +163,7 @@ export async function searchPlaces(
         user_ratings_total: p.userRatingCount || 0,
         description: p.editorialSummary?.text || '',
         google_maps_url: mapsUrl,
+        already_contacted: isAlreadyContacted,
       };
     });
 
@@ -165,81 +191,50 @@ function filterPlacesByWebsite(
   return leads;
 }
 
-function generateMaxMockPlaces(category: string, location: string): PlaceLeadResult[] {
-  const city = location.split(',')[0].trim() || 'City';
-  const cleanCat = category.replace(/s$/i, '').trim();
+function generateMaxMockPlaces(
+  category: string,
+  location: string,
+  contactedExtIds?: Set<string>,
+  contactedPhones?: Set<string>
+): PlaceLeadResult[] {
+  const city = location.split(',')[0].trim();
+  const citySlug = city.toLowerCase().replace(/[^a-z0-9]/g, '');
 
   const businessPrefixes = [
-    'The Royal',
-    'Apex',
-    'Elite',
-    'Prime',
-    'Urban',
-    'Zenith',
-    'Nova',
-    'Starlight',
-    'Metro',
-    'Signature',
-    'Global',
-    'Om',
-    'Shree',
-    'Balaji',
-    'Classic',
-    'Star',
-    'Crown',
-    'Imperial',
-    'Heritage',
-    'Grand',
-    'Vibrant',
-    'Golden',
-    'Silver',
-    'Pinnacle',
-    'Matrix',
-    'Sunrise',
-    'Blue Sapphire',
-    'Maharaja',
-    'Regal',
-    'First Choice',
-    'Divine',
-    'Superb',
-    'Galaxy',
-    'Crystal',
-    'Evergreen',
-    'Sparkle',
-    'Prestige',
-    'Radiance',
-    'Paramount',
-    'United',
+    'Elite', 'Apex', 'Royal', 'Shree', 'Global', 'Prime', 'Metro', 'Urban', 'Silver', 'Golden',
+    'Sunrise', 'Zenith', 'NextGen', 'Divine', 'Superb', 'Classic', 'Grand', 'Pinnacle', 'Radiant', 'Infinite'
   ];
 
   const results: PlaceLeadResult[] = [];
 
-  for (let i = 0; i < 20; i++) {
-    const prefix = businessPrefixes[i % businessPrefixes.length];
-    const name = `${prefix} ${cleanCat}`;
-    const nameSlug = name.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const citySlug = city.toLowerCase().replace(/[^a-z0-9]/g, '');
+  for (let i = 1; i <= 25; i++) {
+    const prefix = businessPrefixes[(i - 1) % businessPrefixes.length];
+    const name = `${prefix} ${category} ${i > businessPrefixes.length ? i : ''}`.trim();
     const hasWebsite = i % 3 === 0;
-    const rating = parseFloat((4.0 + (i % 10) * 0.1).toFixed(1));
-    const reviews = 15 + ((i * 17) % 350);
+    const nameSlug = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const phone = `+91 ${9800000000 + i * 1111}`;
+    const cleanPhone = phone.replace(/[^0-9]/g, '');
+    const extId = `mock_${citySlug}_${category.slice(0, 3)}_${i}`;
 
-    const phoneDigitStart = ['98', '97', '99', '91', '88', '70', '80'][i % 7];
-    const phoneRandom = Math.floor(10000000 + Math.random() * 90000000);
-    const phone = `+91 ${phoneDigitStart}${phoneRandom.toString().slice(0, 8)}`;
+    const isContacted = Boolean(
+      (contactedExtIds && contactedExtIds.has(extId)) ||
+      (contactedPhones && cleanPhone.length >= 7 && contactedPhones.has(cleanPhone))
+    );
 
     results.push({
-      external_id: `mock_place_${cleanCat}_${i + 1}_${Date.now().toString(36)}`,
+      external_id: extId,
       name,
-      category: cleanCat,
-      address: `Shop ${i + 12}, Main Market Road, Sector ${((i * 3) % 25) + 1}, ${city}`,
+      category,
+      address: `Shop ${i * 4}, Commercial Complex, ${city}, India`,
       phone,
-      website: hasWebsite ? `https://www.${nameSlug}.in` : undefined,
+      website: hasWebsite ? `https://www.${nameSlug}.com` : undefined,
       has_website: hasWebsite,
       instagram_handle: `@${nameSlug}_${citySlug}`,
-      rating,
-      user_ratings_total: reviews,
-      description: `Popular ${cleanCat.toLowerCase()} service provider serving ${city} with high customer satisfaction.`,
+      rating: parseFloat((4.0 + (i % 10) * 0.1).toFixed(1)),
+      user_ratings_total: 15 + i * 8,
+      description: `Leading ${category} provider in ${city} offering specialized services.`,
       google_maps_url: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name + ' ' + city)}`,
+      already_contacted: isContacted,
     });
   }
 

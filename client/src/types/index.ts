@@ -68,6 +68,7 @@ export interface PlaceSearchResult {
   description?: string;
   google_maps_url?: string;
   selected?: boolean;
+  already_contacted?: boolean;
 }
 
 export type ThumbnailQualityStatus =
@@ -95,6 +96,7 @@ export interface YouTubeSearchResult {
   recent_video_title?: string;
   recent_video_thumbnail?: string;
   selected?: boolean;
+  already_contacted?: boolean;
 }
 
 export interface DashboardStats {

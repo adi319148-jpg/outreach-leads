@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { youtubeRateLimiter } from '../utils/rateLimiter';
 import { getSetting } from './settingsService';
+import { all } from '../db/database';
 
 export type ThumbnailQualityStatus =
   | 'needs_thumbnail_redesign'
@@ -27,6 +28,7 @@ export interface YouTubeLeadResult {
   recent_video_title?: string;
   recent_video_thumbnail?: string;
   selected?: boolean;
+  already_contacted?: boolean;
 }
 
 export async function searchYouTubeChannels(
@@ -36,6 +38,18 @@ export async function searchYouTubeChannels(
   qualityFilter: 'all' | 'needs_thumbnail_redesign' | 'needs_video_editing' = 'all'
 ): Promise<{ leads: YouTubeLeadResult[]; isMock: boolean; message?: string }> {
   const apiKey = await getSetting('youtubeApiKey');
+
+  // Query all already-contacted channels from DB
+  const contactedRecords = await all<{ external_id?: string; channel_handle?: string; contact_email?: string }>(
+    "SELECT external_id, channel_handle, contact_email FROM leads WHERE status IN ('contacted', 'replied', 'converted') OR last_contacted_at IS NOT NULL"
+  );
+  const contactedExtIds = new Set(contactedRecords.filter((r) => r.external_id).map((r) => r.external_id));
+  const contactedHandles = new Set(
+    contactedRecords.filter((r) => r.channel_handle).map((r) => r.channel_handle?.toLowerCase())
+  );
+  const contactedEmails = new Set(
+    contactedRecords.filter((r) => r.contact_email).map((r) => r.contact_email?.toLowerCase())
+  );
 
   if (!apiKey) {
     console.log('[YouTubeService] No API key configured. Generating comprehensive simulation channels...');
@@ -138,6 +152,14 @@ export async function searchYouTubeChannels(
         reason = 'Strong audience engagement. Candidate for short-form video repurposing (Reels/Shorts) to double organic reach.';
       }
 
+      const handle = (customUrl || `@${(snippet.title || '').toLowerCase().replace(/[^a-z0-9]/g, '')}`).toLowerCase();
+      const isAlreadyContacted =
+        Boolean(
+          (ch.id && contactedExtIds.has(ch.id)) ||
+          (handle && contactedHandles.has(handle)) ||
+          (email && contactedEmails.has(email.toLowerCase()))
+        );
+
       return {
         external_id: ch.id,
         name: snippet.title || 'YouTube Creator',
@@ -155,6 +177,7 @@ export async function searchYouTubeChannels(
         contact_email: email,
         phone,
         thumbnail_url: snippet.thumbnails?.default?.url || snippet.thumbnails?.medium?.url,
+        already_contacted: isAlreadyContacted,
       };
     });
 
