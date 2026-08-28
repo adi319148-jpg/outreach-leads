@@ -46,7 +46,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Environment variables for Puppeteer and Cloud execution
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
-    NODE_ENV=production \
     PORT=3001 \
     DATABASE_PATH=/app/data/leads.db \
     WWEBJS_AUTH_PATH=/app/data/.wwebjs_auth
@@ -61,10 +60,10 @@ COPY package*.json ./
 COPY server/package*.json ./server/
 COPY client/package*.json ./client/
 
-# Install all dependencies (including devDependencies needed for build)
-RUN npm install
-RUN cd server && npm install
-RUN cd client && npm install
+# Install all dependencies (including devDependencies needed for TypeScript & Vite build)
+RUN npm install --include=dev
+RUN cd server && npm install --include=dev
+RUN cd client && npm install --include=dev
 
 # Copy source code
 COPY server/ ./server/
@@ -73,6 +72,9 @@ COPY client/ ./client/
 # Build client (Vite -> client/dist) and server (TypeScript -> server/dist)
 RUN cd client && npm run build
 RUN cd server && npm run build
+
+# Set production mode for runtime
+ENV NODE_ENV=production
 
 # Expose default application port
 EXPOSE 3001
