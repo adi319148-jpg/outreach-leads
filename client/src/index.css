@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    color-scheme: dark;
+    background-color: #0b0f17;
+  }
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: #0b0f17;
+    color: #f8fafc;
+    overflow-x: hidden;
+  }
+  code, pre {
+    font-family: 'JetBrains Mono', monospace;
+  }
+  input, textarea, select {
+    background-color: #0f172a;
+    color: #f8fafc;
+    border-color: #334155;
+  }
+  input:focus, textarea:focus, select:focus {
+    border-color: #6366f1 !important;
+    outline: none;
+    box-shadow: 0 0 0 1px #6366f1;
+  }
+  input::placeholder, textarea::placeholder {
+    color: #64748b;
+  }
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0b0f17;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
+/* Selection */
+::selection {
+  background-color: rgba(99, 102, 241, 0.3);
+  color: #c7d2fe;
+}
