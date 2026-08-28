@@ -1,3 +1,16 @@
-http://localhost:5173/  
+===========================================
+How to run OutreachAI:
+===========================================
 
-npm run dev
+1. ONLINE (Internet / Mobile anywhere):
+   Double click: start-online.bat
+   (Gives a 100% Free HTTPS live link)
+
+2. LOCAL ONLY (PC):
+   Double click: start.bat
+   (Opens at http://localhost:3001)
+
+3. DEVELOPMENT:
+   npm run dev
+   (Opens at http://localhost:5173)
+===========================================
