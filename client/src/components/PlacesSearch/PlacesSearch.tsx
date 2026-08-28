@@ -26,6 +26,8 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
+import { WorldMapRadiusPicker } from './WorldMapRadiusPicker';
+
 interface PlacesSearchProps {
   onLeadsSaved: () => void;
   onOpenCampaign?: () => void;
@@ -34,9 +36,16 @@ interface PlacesSearchProps {
 export const PlacesSearch: React.FC<PlacesSearchProps> = ({ onLeadsSaved, onOpenCampaign }) => {
   const [category, setCategory] = useState('Travel Agencies');
   const [location, setLocation] = useState('Mumbai, India');
-  const [radius, setRadius] = useState<number>(5000);
+  const [radius, setRadius] = useState<number>(10000);
   const [websiteFilter, setWebsiteFilter] = useState<'all' | 'no_website' | 'has_website'>('all');
   const [selectedService, setSelectedService] = useState<OfferedService>('whatsapp_ai_agent');
+
+  const [showWorldMap, setShowWorldMap] = useState(false);
+  const [selectedCoords, setSelectedCoords] = useState<{ lat?: number; lng?: number; radiusKm?: number }>({
+    lat: 19.0760,
+    lng: 72.8777,
+    radiusKm: 10,
+  });
 
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<PlaceSearchResult[]>([]);
@@ -59,6 +68,8 @@ export const PlacesSearch: React.FC<PlacesSearchProps> = ({ onLeadsSaved, onOpen
         location,
         radius,
         websiteFilter,
+        latitude: selectedCoords.lat,
+        longitude: selectedCoords.lng,
       });
       // Start with unchecked so user selects specific leads
       setResults(data.leads.map((l) => ({ ...l, selected: false })));
@@ -183,11 +194,46 @@ export const PlacesSearch: React.FC<PlacesSearchProps> = ({ onLeadsSaved, onOpen
             </p>
           </div>
 
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-sky-500/10 text-sky-300 border border-sky-500/20">
-            <Building2 className="h-3.5 w-3.5" />
-            <span>Local Business Pipeline</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowWorldMap((prev) => !prev)}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all shadow ${
+                showWorldMap
+                  ? 'bg-sky-600 text-white border-sky-400 shadow-sky-600/30'
+                  : 'bg-slate-800 hover:bg-slate-700 text-sky-300 border-sky-500/30'
+              }`}
+            >
+              <Globe className="h-3.5 w-3.5" />
+              <span>{showWorldMap ? 'Close Map ▲' : '🗺️ Global Radius Map'}</span>
+            </button>
+
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-sky-500/10 text-sky-300 border border-sky-500/20">
+              <Building2 className="h-3.5 w-3.5" />
+              <span>Local Business Pipeline</span>
+            </div>
           </div>
         </div>
+
+        {/* Interactive World Map Radius Selector */}
+        {showWorldMap && (
+          <div className="pt-1">
+            <WorldMapRadiusPicker
+              initialLat={selectedCoords.lat}
+              initialLng={selectedCoords.lng}
+              initialRadiusKm={Math.round(radius / 1000)}
+              onLocationSelect={(data) => {
+                setLocation(data.locationName);
+                setRadius(data.radiusKm * 1000);
+                setSelectedCoords({
+                  lat: data.lat,
+                  lng: data.lng,
+                  radiusKm: data.radiusKm,
+                });
+              }}
+            />
+          </div>
+        )}
 
         <form onSubmit={handleSearch} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-12 gap-4">

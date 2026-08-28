@@ -21,8 +21,10 @@ export interface PlaceLeadResult {
 export async function searchPlaces(
   category: string,
   location: string,
-  radius: number = 5000,
-  websiteFilter: 'all' | 'no_website' | 'has_website' = 'all'
+  radius: number = 10000,
+  websiteFilter: 'all' | 'no_website' | 'has_website' = 'all',
+  latitude?: number,
+  longitude?: number
 ): Promise<{ leads: PlaceLeadResult[]; isMock: boolean; message?: string }> {
   const apiKey = await getSetting('googlePlacesApiKey');
 
@@ -45,14 +47,14 @@ export async function searchPlaces(
     return {
       leads: filtered,
       isMock: true,
-      message: `Simulated Search Mode: Extracted ${filtered.length} leads across ${activeCategories.length} niches in ${location}. Add Google Places Key in Settings for live data.`,
+      message: `Simulated Search Mode: Extracted ${filtered.length} leads across ${activeCategories.length} niches in ${location} within ${Math.round(radius / 1000)}km radius. Add Google Places Key in Settings for live data.`,
     };
   }
 
   await placesRateLimiter.acquire();
 
   try {
-    console.log(`[PlacesService] Running Multi-Niche Places extraction for [${activeCategories.join(', ')}] in ${location}...`);
+    console.log(`[PlacesService] Running Multi-Niche Places extraction for [${activeCategories.join(', ')}] in ${location} (Radius: ${Math.round(radius / 1000)}km)...`);
 
     const allPlacesMap = new Map<string, any>();
 
@@ -65,12 +67,26 @@ export async function searchPlaces(
 
       for (const query of subQueries) {
         try {
+          const reqBody: any = {
+            textQuery: query,
+            maxResultCount: 20,
+          };
+
+          if (latitude !== undefined && longitude !== undefined) {
+            reqBody.locationBias = {
+              circle: {
+                center: {
+                  latitude,
+                  longitude,
+                },
+                radius: Math.min(radius, 50000),
+              },
+            };
+          }
+
           const response = await axios.post(
             'https://places.googleapis.com/v1/places:searchText',
-            {
-              textQuery: query,
-              maxResultCount: 20,
-            },
+            reqBody,
             {
               headers: {
                 'Content-Type': 'application/json',

@@ -26,6 +26,8 @@ export const searchPlaces = async (params: {
   location: string;
   radius?: number;
   websiteFilter?: 'all' | 'no_website' | 'has_website';
+  latitude?: number;
+  longitude?: number;
 }): Promise<{ leads: PlaceSearchResult[]; isMock: boolean; message?: string }> => {
   const res = await api.post('/places/search', params);
   return res.data;
