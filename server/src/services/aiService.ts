@@ -5,6 +5,7 @@ import { aiRateLimiter } from '../utils/rateLimiter';
 import { validateAndSanitizePitch, getGuardrailRulesDescription } from './guardrailService';
 
 export type OfferedService =
+  | 'all_in_one_bundle'
   | 'whatsapp_ai_agent'
   | 'ai_automation'
   | 'website_design'
@@ -234,7 +235,9 @@ EXACT 2-PART CONVERSATION FORMULA TO FOLLOW:
 - PART 1 (Natural Niche Inquiry): Start directly with a genuine, niche-specific question (e.g. for travel ask about customized package pricing/itinerary, for dental ask about consultation/cleanings, for real estate ask about brochure/pricing, for gym ask about membership rates, for restaurant ask about table reservation/menu).
 - PART 2 (Gentle Observation + Soft Value Pitch): In the next paragraph, naturally mention that while searching online, you noticed:
   ${
-    !hasWebsite || targetService === 'website_design'
+    targetService === 'all_in_one_bundle'
+      ? '"By the way, while searching online I noticed your complete digital booking funnel (Direct Website + 24/7 Instant Booking Assistant + Local Search Optimization) isn\'t fully active. We put together a complete modern growth preview for your business—would you be open to a quick 30-sec preview?"'
+      : !hasWebsite || targetService === 'website_design'
       ? '"By the way, while searching online I noticed your direct booking website link isn\'t listed on Google and package/pricing details aren\'t easily visible. We put together a clean 1-page modern booking preview concept for your business—would you be open to a quick 30-sec preview?"'
       : targetService === 'whatsapp_ai_agent' || targetService === 'ai_automation'
       ? '"By the way, I noticed your direct 24/7 instant booking assistant isn\'t active for peak hour inquiries. We drafted a smart AI booking assistant concept—would you be open to checking out a quick demo preview?"'
@@ -267,7 +270,9 @@ EXACT 2-PART CONVERSATION FORMULA TO FOLLOW:
 - PART 1 (Natural Niche Inquiry): Start directly with a genuine, niche-specific question (e.g., for travel ask about holiday package pricing/itinerary, for dental ask about consultation/timings, for real estate ask about brochure/2BHK prices, for gym ask about membership, for restaurant ask about table reservation/menu).
 - PART 2 (Gentle Observation + Soft Pitch): In the next paragraph, naturally mention that while searching on Google, you noticed:
   ${
-    !hasWebsite || targetService === 'website_design'
+    targetService === 'all_in_one_bundle'
+      ? '"Waise notice kiya ki aapka complete digital booking funnel (Direct Website + 24/7 WhatsApp AI Bot + Google Maps Local Ranking) active nahi hai. Humne aapke brand ke liye ek Complete Digital Growth Suite concept prepare kiya hai—kya main ek 30-sec preview share karun dekhne ke liye?"'
+      : !hasWebsite || targetService === 'website_design'
       ? '"Waise Google pe search karte time dekha ki aapka direct official website / booking link add nahi hai aur details online easily nahi dikh rahi hain. Humne aapke business ke liye ek clean 1-page modern booking website ka concept prepare kiya hai—kya main ek 30-sec preview share karun dekhne ke liye?"'
       : targetService === 'whatsapp_ai_agent' || targetService === 'ai_automation'
       ? '"Waise notice kiya ki WhatsApp pe instant 24/7 automated booking assistant active nahi hai jisse peak hours me inquiries miss ho sakti hain. Humne ek smart AI booking bot concept draft kiya hai—kya main ek quick demo preview share karun?"'

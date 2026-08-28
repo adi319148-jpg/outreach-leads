@@ -402,6 +402,25 @@ export const PlacesSearch: React.FC<PlacesSearchProps> = ({ onLeadsSaved, onOpen
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {/* Service Target Angle */}
+            <div className="flex items-center gap-1.5">
+              <select
+                value={selectedService}
+                onChange={(e) => setSelectedService(e.target.value as OfferedService)}
+                className="px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 text-xs focus:border-sky-500 font-semibold"
+              >
+                <option value="whatsapp_ai_agent">🤖 WhatsApp AI Agent & 24/7 Bot</option>
+                <option value="website_design">🌐 Web Design / Redesign</option>
+                <option value="all_in_one_bundle">🔥 All-in-One Growth Bundle (Web + Bot + SEO)</option>
+                <option value="ai_automation">⚡ AI Automation & Customer Assistant</option>
+                <option value="content_creation_reels">🎬 Short Reels / Video Promo</option>
+                <option value="gmb_local_seo">📈 Google Maps Local SEO</option>
+                <option value="branding_logo">🎨 Visual Branding / Logo</option>
+                <option value="paid_ads">🚀 Meta & Google Paid Ads</option>
+                <option value="social_media_management">📱 Social Media Management</option>
+              </select>
+            </div>
+
             <button
               onClick={() => handleSave(false)}
               disabled={selectedCount === 0 || saving}
