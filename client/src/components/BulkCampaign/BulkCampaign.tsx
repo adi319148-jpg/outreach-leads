@@ -578,8 +578,7 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
     }
   };
 
-  const connectedAccounts = waAccounts.filter((a) => a.status === 'connected');
-  const isWaConnected = connectedAccounts.length > 0 || waState?.status === 'connected';
+  const isWaConnected = waState?.status === 'connected';
   const readyPitchesCount = leads.filter((l) => Boolean(l.pitch)).length;
   const contactedCount = leads.filter((l) => l.status === 'contacted' || l.status === 'replied' || l.status === 'converted').length;
   const wordCount = editingPitchText.trim() ? editingPitchText.trim().split(/\s+/).length : 0;
@@ -596,10 +595,10 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
                 <span>Bulk Campaign & Multi-Channel Dispatch</span>
               </span>
 
-              {connectedAccounts.length > 1 && (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">
-                  <Users className="h-3.5 w-3.5 text-sky-400" />
-                  <span>⚡ Multi-WhatsApp ({connectedAccounts.length} Connected - {connectedAccounts.length}x Multi-Worker Speed)</span>
+              {isWaConnected && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  <MessageCircle className="h-3.5 w-3.5 text-emerald-400" />
+                  <span>WhatsApp Linked (+{waState?.userPhone || 'Active'})</span>
                 </span>
               )}
             </div>
@@ -607,7 +606,7 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
               Campaign Queue ({leads.length} Leads)
             </h2>
             <p className="text-xs text-slate-300">
-              Select leads to compose custom messages, launch <strong>Anti-Ban Multi-WhatsApp Automation</strong>, or dispatch <strong>Direct Cold Emails</strong>.
+              Select leads to compose custom messages, launch <strong>Safe WhatsApp Automation (30-45s Delay)</strong>, or dispatch <strong>Direct Cold Emails</strong>.
             </p>
           </div>
 
