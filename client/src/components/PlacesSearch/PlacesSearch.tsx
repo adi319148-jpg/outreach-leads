@@ -32,11 +32,11 @@ interface PlacesSearchProps {
 }
 
 export const PlacesSearch: React.FC<PlacesSearchProps> = ({ onLeadsSaved, onOpenCampaign }) => {
-  const [category, setCategory] = useState('Dental Clinics');
-  const [location, setLocation] = useState('Austin, TX');
+  const [category, setCategory] = useState('Travel Agencies');
+  const [location, setLocation] = useState('Mumbai, India');
   const [radius, setRadius] = useState<number>(5000);
   const [websiteFilter, setWebsiteFilter] = useState<'all' | 'no_website' | 'has_website'>('all');
-  const [selectedService, setSelectedService] = useState<OfferedService>('website_design');
+  const [selectedService, setSelectedService] = useState<OfferedService>('whatsapp_ai_agent');
 
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<PlaceSearchResult[]>([]);
@@ -243,17 +243,37 @@ export const PlacesSearch: React.FC<PlacesSearchProps> = ({ onLeadsSaved, onOpen
 
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[11px] text-slate-400">Popular:</span>
-              {['Dental Clinics', 'Italian Restaurant', 'Fitness Gym', 'Real Estate Agency', 'Law Firm'].map((tag) => (
-                <button
-                  type="button"
-                  key={tag}
-                  onClick={() => setCategory(tag)}
-                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-300 hover:text-white transition-colors"
-                >
-                  {tag}
-                </button>
-              ))}
+              <span className="text-[11px] text-slate-400 font-semibold">Top Niches:</span>
+              {[
+                '✈️ Travel Agencies',
+                '🦷 Dental Clinics',
+                '🏢 Real Estate Builders',
+                '🍽️ Restaurants & Cafes',
+                '🏋️ Fitness Gyms',
+                '💇 Salons & Spas',
+                '🏡 Interior Designers',
+                '📸 Wedding Photographers',
+                '🎓 Coaching Institutes',
+                '💼 CA & Tax Consultants',
+                '🚗 Car Detailing',
+                '👗 Fashion Boutiques',
+                '✨ Event Planners',
+                '🏥 Hospitals & Clinics',
+                '🐶 Pet Clinics',
+                '🧹 Home Deep Cleaning',
+              ].map((tag) => {
+                const cleanTag = tag.replace(/^[^\s]+\s/, '');
+                return (
+                  <button
+                    type="button"
+                    key={tag}
+                    onClick={() => setCategory(cleanTag)}
+                    className="px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-[11px] text-slate-300 hover:text-white transition-colors border border-slate-700/60 font-medium"
+                  >
+                    {tag}
+                  </button>
+                );
+              })}
             </div>
 
             <button
