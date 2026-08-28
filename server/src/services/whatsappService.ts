@@ -35,6 +35,7 @@ export interface BatchWhatsAppProgress {
 interface SessionRecord {
   id: string;
   name: string;
+  wwebClientId: string;
   client: Client | null;
   state: WhatsAppAccountState;
   isInitializing: boolean;
@@ -66,18 +67,21 @@ function getBrowserExecutablePath(): string | undefined {
   }
 
   const possiblePaths = [
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+    process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, 'Google\\Chrome\\Application\\chrome.exe') : '',
+    process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, 'Microsoft\\Edge\\Application\\msedge.exe') : '',
     '/usr/bin/chromium',
     '/usr/bin/chromium-browser',
     '/usr/bin/google-chrome-stable',
     '/usr/bin/google-chrome',
-    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-    `C:\\Users\\${process.env.USERNAME || 'DELL'}\\AppData\\Local\\Google\\Chrome\\Application\\chrome.exe`,
-    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
-  ];
+  ].filter(Boolean);
 
   for (const p of possiblePaths) {
     if (fs.existsSync(p)) {
+      console.log(`[WhatsApp] Auto-detected browser executable: ${p}`);
       return p;
     }
   }
@@ -90,14 +94,53 @@ function getAuthDirectory(): string {
     : path.resolve(__dirname, '../../.wwebjs_auth');
 }
 
+function cleanSessionLockFiles(sessionDirPath: string) {
+  try {
+    if (!fs.existsSync(sessionDirPath)) return;
+    const lockFiles = [
+      'SingletonLock',
+      'SingletonCookie',
+      'SingletonSocket',
+      'DevToolsActivePort',
+      'lockfile',
+      'CrashpadMetrics-active.pma',
+      'BrowserMetrics-spare.pma',
+    ];
+    for (const file of lockFiles) {
+      const filePath = path.join(sessionDirPath, file);
+      if (fs.existsSync(filePath)) {
+        try {
+          fs.unlinkSync(filePath);
+          console.log(`[WhatsApp] Cleaned stale lock: ${file}`);
+        } catch (e) {}
+      }
+    }
+    const defaultSub = path.join(sessionDirPath, 'Default');
+    if (fs.existsSync(defaultSub)) {
+      for (const file of lockFiles) {
+        const filePath = path.join(defaultSub, file);
+        if (fs.existsSync(filePath)) {
+          try {
+            fs.unlinkSync(filePath);
+          } catch (e) {}
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[WhatsApp] Lock cleanup notice:', err);
+  }
+}
+
 function getOrCreateSessionRecord(sessionId: string, accountName?: string): SessionRecord {
   if (sessions.has(sessionId)) {
     return sessions.get(sessionId)!;
   }
 
+  const cleanSessionId = sessionId.replace(/[^a-zA-Z0-9_-]/g, '_');
   const newRecord: SessionRecord = {
     id: sessionId,
     name: accountName || `WhatsApp Account ${sessions.size + 1}`,
+    wwebClientId: `session_${cleanSessionId}`,
     client: null,
     isInitializing: false,
     state: {
@@ -196,7 +239,11 @@ export async function initializeWhatsAppSession(
     try {
       if (session.client) {
         try {
-          await session.client.destroy();
+          const pupBrowser = (session.client as any).pupBrowser;
+          if (pupBrowser) {
+            await pupBrowser.close().catch(() => {});
+          }
+          await session.client.destroy().catch(() => {});
         } catch (e) {
           console.log(`[WhatsApp ${sessionId}] Previous client destroy notice:`, e);
         }
@@ -206,19 +253,28 @@ export async function initializeWhatsAppSession(
       const authPath = getAuthDirectory();
       const executablePath = getBrowserExecutablePath();
 
-      // Map account_1 to legacy session name for backward compatibility
-      const wwebClientId = sessionId === 'account_1' ? 'kropix-studio-session' : `multi-wa-${sessionId}`;
+      // If force restart or error was encountered, randomize sub-client id to ensure fresh unblocked folder
+      if (forceRestart) {
+        session.wwebClientId = `session_${sessionId}_${Date.now()}`;
+      }
 
-      console.log(`[WhatsApp ${sessionId}] Initializing client for ${wwebClientId}...`);
+      const sessionDirPath = path.join(authPath, `session-${session.wwebClientId}`);
+      cleanSessionLockFiles(sessionDirPath);
+
+      console.log(`[WhatsApp ${sessionId}] Initializing client (${session.wwebClientId}) with browser: ${executablePath || 'Bundled'}`);
 
       const client = new Client({
         authStrategy: new LocalAuth({
-          clientId: wwebClientId,
+          clientId: session.wwebClientId,
           dataPath: authPath,
         }),
+        webVersionCache: {
+          type: 'remote',
+          remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
+        },
         puppeteer: {
-          headless: true,
           executablePath,
+          headless: true,
           args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -227,6 +283,7 @@ export async function initializeWhatsAppSession(
             '--no-first-run',
             '--no-zygote',
             '--disable-gpu',
+            '--disable-extensions',
           ],
         },
       });
@@ -234,7 +291,7 @@ export async function initializeWhatsAppSession(
       session.client = client;
 
       client.on('qr', async (qr) => {
-        console.log(`[WhatsApp ${sessionId}] QR received. Generating base64 image...`);
+        console.log(`[WhatsApp ${sessionId}] QR received! Generating QR image...`);
         try {
           const qrDataUrl = await QRCode.toDataURL(qr, {
             width: 320,
@@ -245,6 +302,7 @@ export async function initializeWhatsAppSession(
           session.state.qrCodeDataUrl = qrDataUrl;
           session.state.errorMessage = null;
           session.isInitializing = false;
+          console.log(`[WhatsApp ${sessionId}] ✅ QR Code is READY for scan!`);
         } catch (err: any) {
           session.state.errorMessage = 'Failed to generate QR image';
           session.isInitializing = false;
@@ -252,7 +310,7 @@ export async function initializeWhatsAppSession(
       });
 
       client.on('authenticated', () => {
-        console.log(`[WhatsApp ${sessionId}] Authenticated!`);
+        console.log(`[WhatsApp ${sessionId}] Authenticated successfully!`);
         session.state.status = 'connecting';
         session.state.qrCodeDataUrl = null;
         session.state.errorMessage = null;
@@ -337,7 +395,14 @@ export async function initializeWhatsAppSession(
 
       await client.initialize();
     } catch (err: any) {
-      console.error(`[WhatsApp ${sessionId}] Initialization error:`, err);
+      console.error(`[WhatsApp ${sessionId}] Initialization error:`, err.message || err);
+
+      // If directory was locked, retry once with fresh timestamped session clientId
+      if (err.message && err.message.includes('browser is already running') && !forceRestart) {
+        console.log(`[WhatsApp ${sessionId}] Retrying with fresh session folder...`);
+        return initializeWhatsAppSession(sessionId, accountName, true);
+      }
+
       session.state.status = 'error';
       session.state.errorMessage = err.message || 'Failed to initialize WhatsApp Web';
       session.isInitializing = false;
@@ -356,15 +421,22 @@ export async function disconnectWhatsAppSession(sessionId: string): Promise<What
   const session = sessions.get(sessionId);
   if (session && session.client) {
     try {
-      await session.client.logout();
-      await session.client.destroy();
+      const pupBrowser = (session.client as any).pupBrowser;
+      if (pupBrowser) {
+        await pupBrowser.close().catch(() => {});
+      }
+      await session.client.logout().catch(() => {});
+      await session.client.destroy().catch(() => {});
     } catch (err) {
       console.log(`[WhatsApp ${sessionId}] Logout notice:`, err);
     }
     session.client = null;
   }
 
+  const authPath = getAuthDirectory();
   if (session) {
+    const sessionDirPath = path.join(authPath, `session-${session.wwebClientId}`);
+    cleanSessionLockFiles(sessionDirPath);
     session.state.status = 'disconnected';
     session.state.qrCodeDataUrl = null;
     session.state.userPhone = null;
@@ -540,7 +612,7 @@ export async function startAntiBanBatchWhatsApp(
       }
 
       const lead = eligibleLeads[i];
-      const activeSession = connected[i % accountsCount]; // Round-Robin across linked accounts
+      const activeSession = connected[i % accountsCount];
       const activeAccountName = activeSession.name;
 
       batchProgress.currentIndex = i + 1;
@@ -594,7 +666,7 @@ export async function startAntiBanBatchWhatsApp(
         accountName: activeAccountName,
       });
 
-      // Divide effective inter-lead delay by accountsCount while keeping individual number safe!
+      // Divide effective delay by accountsCount while keeping individual number safe!
       if (i < eligibleLeads.length - 1 && !cancelBatchRequested && !isEmergencyKillSwitchActive) {
         const rawDelay = Math.floor(Math.random() * (maxDelaySeconds - minDelaySeconds + 1)) + minDelaySeconds;
         const adjustedDelay = Math.max(8, Math.round(rawDelay / Math.max(1, accountsCount)));
