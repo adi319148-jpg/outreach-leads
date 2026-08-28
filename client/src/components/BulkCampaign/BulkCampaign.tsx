@@ -529,6 +529,30 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
     setTimeout(() => setCopiedBatch(false), 3000);
   };
 
+  const handleBatchOpenInGmail = async () => {
+    const targetLeads = leads.filter((l) => selectedIds.includes(l.id) && l.contact_email);
+    if (targetLeads.length === 0) {
+      setActionSuccessMsg('⚠️ None of the selected leads have an email address.');
+      setTimeout(() => setActionSuccessMsg(null), 3000);
+      return;
+    }
+    for (const lead of targetLeads) {
+      const subject = `Quick inquiry regarding ${lead.name}`;
+      const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(
+        lead.contact_email!
+      )}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(lead.pitch || '')}`;
+      window.open(gmailUrl, '_blank');
+      await updateLead(lead.id, { status: 'contacted', in_campaign_queue: false, markContacted: true }).catch(() => {});
+    }
+    const ids = targetLeads.map((l) => l.id);
+    setLeads((prev) => prev.filter((l) => !ids.includes(l.id)));
+    setSelectedIds((prev) => prev.filter((i) => !ids.includes(i)));
+    if (activeEditingLead && ids.includes(activeEditingLead.id)) setActiveEditingLead(null);
+    setActionSuccessMsg(`📬 Opened ${targetLeads.length} leads in Gmail & marked as Contacted! 🚀`);
+    setTimeout(() => setActionSuccessMsg(null), 4000);
+    onCampaignUpdated();
+  };
+
   const handleSendSingleEmailDirect = async (lead: Lead) => {
     if (!lead.contact_email || !lead.pitch) {
       setActionSuccessMsg('⚠️ Valid email and drafted pitch are required.');
@@ -649,13 +673,23 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
                 </button>
 
                 <button
+                  onClick={handleBatchOpenInGmail}
+                  disabled={selectedIds.length === 0}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-600/30 transition-all disabled:opacity-40"
+                  title="Open pre-filled Gmail Compose windows with 1-click (Zero Setup / Zero API)"
+                >
+                  <Mail className="h-3.5 w-3.5" />
+                  <span>Gmail Web ↗ ({selectedIds.length})</span>
+                </button>
+
+                <button
                   onClick={handleStartBatchEmail}
                   disabled={batchEmailStarting || selectedIds.length === 0}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-lg shadow-sky-600/30 transition-all disabled:opacity-40"
-                  title="Send emails automatically in the background (Zero Tabs)"
+                  title="Send emails automatically in the background via SMTP / Resend"
                 >
                   <Mail className={`h-3.5 w-3.5 ${batchEmailStarting ? 'animate-spin' : ''}`} />
-                  <span>{batchEmailStarting ? 'Dispatching...' : `🚀 Launch Email (${selectedIds.length})`}</span>
+                  <span>{batchEmailStarting ? 'Auto-Email...' : `Auto-Send (${selectedIds.length})`}</span>
                 </button>
 
                 <button
