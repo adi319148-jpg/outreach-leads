@@ -38,7 +38,12 @@ export interface LeadForPitch {
 
 export type PitchTone = 'friendly' | 'value_offer' | 'collab' | 'direct';
 
-const GEMINI_MODELS = ['gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-2.5-flash', 'gemini-1.5-flash'];
+const GEMINI_MODELS = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-2.0-flash-exp'];
+
+function safeReplaceAll(source: string, target: string, replacement: string): string {
+  if (!source || !target) return source || '';
+  return source.split(target).join(replacement);
+}
 
 /**
  * Intelligent International Location & Language Detector
@@ -133,20 +138,35 @@ export async function generatePitch(
   const cacheKey = `ai_pitch:${targetService}:${isIntl ? 'en' : 'hi'}:${catSlug}:${lead.has_website ? 'web' : 'noweb'}`;
 
   if (!customInstructions) {
-    const cachedPitch = await getCachedData<string>(cacheKey);
-    if (cachedPitch) {
-      console.log(`[AI Engine] ⚡ CACHE HIT: Re-using optimized pitch pattern (0 LLM Tokens used).`);
-      const localizedPitch = cachedPitch
-        .replace(/\{name\}|\[Name\]|\[Business Name\]/gi, lead.name)
-        .replace(/\{location\}|\[Location\]/gi, lead.address ? lead.address.split(',')[0].trim() : 'aapke yahan');
+    try {
+      const cachedPitch = await getCachedData<string>(cacheKey);
+      if (cachedPitch && typeof cachedPitch === 'string') {
+        console.log(`[AI Engine] ⚡ CACHE HIT: Re-using optimized pitch pattern (0 LLM Tokens used).`);
+        let localizedPitch = cachedPitch;
+        localizedPitch = safeReplaceAll(localizedPitch, '{name}', lead.name);
+        localizedPitch = safeReplaceAll(localizedPitch, '[Name]', lead.name);
+        localizedPitch = safeReplaceAll(localizedPitch, '[Business Name]', lead.name);
+        localizedPitch = safeReplaceAll(
+          localizedPitch,
+          '{location}',
+          lead.address ? lead.address.split(',')[0].trim() : 'aapke yahan'
+        );
+        localizedPitch = safeReplaceAll(
+          localizedPitch,
+          '[Location]',
+          lead.address ? lead.address.split(',')[0].trim() : 'aapke yahan'
+        );
 
-      const guardrailResult = validateAndSanitizePitch(localizedPitch);
-      return {
-        pitch: guardrailResult.sanitizedText,
-        provider: 'ai-cache-interpolator',
-        isMock: false,
-        warnings: guardrailResult.warnings.length > 0 ? guardrailResult.warnings : undefined,
-      };
+        const guardrailResult = validateAndSanitizePitch(localizedPitch);
+        return {
+          pitch: guardrailResult.sanitizedText,
+          provider: 'ai-cache-interpolator',
+          isMock: false,
+          warnings: guardrailResult.warnings.length > 0 ? guardrailResult.warnings : undefined,
+        };
+      }
+    } catch (err) {
+      console.warn('[AI Engine] Cache lookup warning:', err);
     }
   }
 
@@ -208,13 +228,6 @@ export async function generatePitch(
     }
   }
 
-  // 3. Cache generated pitch template for future 0-cost reuse
-  if (rawPitch && !customInstructions) {
-    const templateToCache = rawPitch
-      .replace(new RegExp(lead.name, 'gi'), '{name}');
-    await setCachedData(cacheKey, templateToCache, 72);
-  }
-
   // 3. Ultra-Human Dynamic Hybrid Fallback Engine (Question + Pitch Observation)
   if (!rawPitch) {
     rawPitch = isIntl
@@ -222,6 +235,16 @@ export async function generatePitch(
       : generateInquiryPlusPitchFallback(lead, targetService, format);
     provider = isIntl ? 'intl-english-engine' : 'hybrid-pitch-engine';
     isMock = true;
+  }
+
+  // 4. Cache generated pitch template for future 0-cost reuse (safely without regex crash)
+  if (rawPitch && !customInstructions && lead.name) {
+    try {
+      const templateToCache = safeReplaceAll(rawPitch, lead.name, '{name}');
+      await setCachedData(cacheKey, templateToCache, 72);
+    } catch (e) {
+      // Ignore cache store error
+    }
   }
 
   // 4. Run Sanitizer
