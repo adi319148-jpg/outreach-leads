@@ -54,10 +54,18 @@ export function performGapAnalysis(lead: LeadForPitch): {
     };
   }
 
+  if (lead.has_website === false || !lead.website) {
+    return {
+      primaryGap: 'Google pe official website link aur details properly add nahi hain',
+      recommendedService: 'website_design',
+      gentleObservation: 'Online search karne par direct booking link aur details easily nahi dikh rahi hain.',
+    };
+  }
+
   return {
     primaryGap: 'Instant 24/7 WhatsApp customer inquiry handling & bookings',
     recommendedService: 'whatsapp_ai_agent',
-    gentleObservation: 'High intent customer inquiry.',
+    gentleObservation: 'WhatsApp inquiry automation can boost bookings.',
   };
 }
 
@@ -76,7 +84,7 @@ export async function generatePitch(
   const targetService = offeredService !== 'general' ? offeredService : gapResult.recommendedService;
 
   const leadContext = formatLeadContext(lead);
-  const prompt = buildUltraHumanInquiryPrompt(lead, leadContext, targetService, format, customInstructions);
+  const prompt = buildInquiryPlusPitchPrompt(lead, leadContext, targetService, format, customInstructions);
 
   let rawPitch = '';
   let provider = 'smart-template-engine';
@@ -87,7 +95,7 @@ export async function generatePitch(
     for (const modelName of GEMINI_MODELS) {
       try {
         await aiRateLimiter.acquire();
-        console.log(`[AI Engine] Generating Multi-Service Ultra-Human Inquiry for [${targetService}] with Gemini (${modelName})...`);
+        console.log(`[AI Engine] Generating Question + Pitch Hybrid for [${targetService}] with Gemini (${modelName})...`);
         const genAI = new GoogleGenerativeAI(geminiKey);
         const model = genAI.getGenerativeModel({ model: modelName });
         const result = await model.generateContent(prompt);
@@ -109,11 +117,11 @@ export async function generatePitch(
   if (!rawPitch && claudeKey) {
     try {
       await aiRateLimiter.acquire();
-      console.log(`[AI Engine] Generating Multi-Service Ultra-Human Inquiry with Claude...`);
+      console.log(`[AI Engine] Generating Question + Pitch Hybrid with Claude...`);
       const anthropic = new Anthropic({ apiKey: claudeKey });
       const response = await anthropic.messages.create({
         model: 'claude-3-haiku-20240307',
-        max_tokens: 200,
+        max_tokens: 220,
         messages: [{ role: 'user', content: prompt }],
       });
       const text = (response.content[0] as any)?.text?.trim() || '';
@@ -127,10 +135,10 @@ export async function generatePitch(
     }
   }
 
-  // 3. Ultra-Human Dynamic Niche-Specific Fallback Engine (Multi-variant randomized pool across all services & niches)
+  // 3. Ultra-Human Dynamic Hybrid Fallback Engine (Question + Pitch Observation)
   if (!rawPitch) {
-    rawPitch = generateUltraHumanNicheFallback(lead, targetService, format);
-    provider = 'human-inquiry-engine';
+    rawPitch = generateInquiryPlusPitchFallback(lead, targetService, format);
+    provider = 'hybrid-pitch-engine';
     isMock = true;
   }
 
@@ -148,6 +156,7 @@ export async function generatePitch(
 function formatLeadContext(lead: LeadForPitch): string {
   const parts: string[] = [`Business/Creator Name: ${lead.name}`, `Niche/Category: ${lead.category || 'Business'}`];
   if (lead.address) parts.push(`Location/City: ${lead.address.split(',')[0]}`);
+  parts.push(`Website Status: ${lead.has_website !== false && lead.website ? `Active (${lead.website})` : 'NO WEBSITE (Missing on Google)'}`);
   if (lead.source === 'youtube') {
     if (lead.subscriber_count) parts.push(`Subscribers: ${lead.subscriber_count.toLocaleString()}`);
   }
@@ -155,54 +164,45 @@ function formatLeadContext(lead: LeadForPitch): string {
 }
 
 /**
- * Ultra-Human Prompt Generator:
- * Generates natural, high-converting customer inquiry questions across ALL services (WhatsApp AI, Video Reels, Ads, SEO, Branding).
+ * Ultra-Human Question + Soft Pitch Hybrid Prompt:
+ * Structure:
+ * 1. Part 1: Natural, niche-specific customer inquiry question (e.g. asking about packages / appointments / pricing / menu).
+ * 2. Part 2: Gentle observation that Google/online website or details are missing or WhatsApp automation can be added.
+ * 3. Part 3: Soft low-friction preview question (e.g. "Humne ek quick 1-page concept / AI bot prepare kiya hai—kya preview share karun?").
  */
-function buildUltraHumanInquiryPrompt(
+function buildInquiryPlusPitchPrompt(
   lead: LeadForPitch,
   leadContext: string,
   targetService: OfferedService,
   format: 'whatsapp' | 'email',
   customInstructions?: string
 ): string {
-  const loc = lead.address ? lead.address.split(',')[0].trim() : 'aapke city';
-
-  const serviceFocusMap: Record<OfferedService, string> = {
-    whatsapp_ai_agent: 'Inquire about automated WhatsApp booking / 24/7 inquiry bot vs manual handling for their business niche.',
-    ai_automation: 'Inquire about automating customer inquiries and instant lead qualification for their niche.',
-    content_creation_reels: 'Inquire about short-form viral reels, video editing & customer showcase clips tailored for their niche.',
-    paid_ads: 'Inquire about local Meta / Google targeted customer acquisition ads for their niche in ' + loc + '.',
-    gmb_local_seo: 'Inquire about Google Maps local search visibility and direct call inquiries.',
-    branding_logo: 'Inquire about brand identity revamp, catalogue & social media creatives.',
-    social_media_management: 'Inquire about social media management and regular creative posts for their brand.',
-    website_design: 'Inquire about their booking website or catalogue landing page.',
-    general: 'Ask a high-intent, natural niche-specific customer inquiry question.',
-  };
+  const hasWebsite = lead.has_website !== false && Boolean(lead.website);
 
   return `You are a real, friendly human writing a short, conversational WhatsApp message to an Indian business owner or content creator.
 
 BUSINESS DETAILS:
 ${leadContext}
 
-TARGET SERVICE/ANGLE:
-${serviceFocusMap[targetService] || serviceFocusMap.general}
+EXACT 2-PART CONVERSATION FORMULA TO FOLLOW:
+- PART 1 (Natural Niche Inquiry): Start directly with a genuine, niche-specific question (e.g., for travel ask about holiday package pricing/itinerary, for dental ask about consultation/timings, for real estate ask about brochure/2BHK prices, for gym ask about membership, for restaurant ask about table reservation/menu).
+- PART 2 (Gentle Observation + Soft Pitch): In the next paragraph, naturally mention that while searching on Google, you noticed:
+  ${
+    !hasWebsite || targetService === 'website_design'
+      ? '"Waise Google pe search karte time dekha ki aapka direct official website / booking link add nahi hai aur details online easily nahi dikh rahi hain. Humne aapke business ke liye ek clean 1-page modern booking website ka concept prepare kiya hai—kya main ek 30-sec preview share karun dekhne ke liye?"'
+      : targetService === 'whatsapp_ai_agent' || targetService === 'ai_automation'
+      ? '"Waise notice kiya ki WhatsApp pe instant 24/7 automated booking assistant active nahi hai jisse peak hours me inquiries miss ho sakti hain. Humne ek smart AI booking bot concept draft kiya hai—kya main ek quick demo preview share karun?"'
+      : targetService === 'content_creation_reels'
+      ? '"Waise online dekha aapka visual short-form reels showcase active nahi hai. Humne aapke brand ke liye 2 sample reel concepts prepare kiye hain—kya preview share karun?"'
+      : '"Waise online search karte time dekha direct booking aur details properly visible nahi hain. Humne ek tailored growth concept ready kiya hai—kya ek short preview share karun?"'
+  }
 
-STRICT HUMAN COPYWRITING RULES (ZERO AI CLICHÉS, ZERO ROBOTIC TONE):
+CRITICAL RULES:
 1. ABSOLUTELY DO NOT MENTION RATINGS, STARS, OR REVIEWS (e.g. NEVER say "4.8 rating", "5 stars", "Google reviews dekhe"). Real humans NEVER mention stars.
-2. ABSOLUTELY DO NOT start with "Main X company se bol raha hoon" or "I hope this finds you well" or any telemarketer opener.
-3. DO NOT LIMIT TO JUST WEBSITES. Adapt the message directly to the business category and target angle (e.g. WhatsApp Bot, Reels Video Editing, Ads, Booking Inquiry, etc.).
-4. ASK A NATURAL NICHE-RELEVANT QUESTION (like a real person typing on WhatsApp):
-   - For Travel: Ask about holiday package pricing, Goa/Manali itinerary, or WhatsApp booking.
-   - For Clinics/Dentists: Ask about consultation timings, appointments, or automated WhatsApp booking.
-   - For Real Estate: Ask about brochures, 2BHK/3BHK prices, or project video walkthroughs.
-   - For Gyms/Fitness: Ask about membership fees, trainer availability, or workout reels.
-   - For Restaurants: Ask about table booking, party packages, or menu details on WhatsApp.
-   - For Salons/Spas: Ask about service packages, rate list, or appointment scheduling.
-   - For Interiors: Ask about 3BHK interior packages, portfolio, or site visit.
-   - For YouTube Creators: Ask about brand collaborations, sponsorships, or short-form video repurposing.
-5. TONE: 100% natural, polite Indian Hinglish with "Aap".
-6. LENGTH: Super short (2 to 3 lines max, under 40 words). Must look like an actual message typed on a smartphone!
-7. FORMAT: Clean WhatsApp message (no subject line).
+2. ABSOLUTELY DO NOT start with "Main X company se bol raha hoon" or "I hope this finds you well" or any robotic opener.
+3. TONE: 100% natural, polite Indian Hinglish with "Aap".
+4. LENGTH: 3 to 4 short lines total. Feels completely natural and human!
+5. FORMAT: Clean WhatsApp message with single blank line between paragraphs (no subject line).
 
 ${customInstructions ? `Special guidance: ${customInstructions}` : ''}
 
@@ -214,10 +214,10 @@ function cleanPitchText(text: string): string {
 }
 
 /**
- * Ultra-Human Dynamic Niche & Multi-Service Fallback Engine
- * Comprehensive pre-trained library with 5+ realistic, natural inquiry questions across 27+ Indian industry niches & ALL offered services (NO ratings, 100% human).
+ * Ultra-Human Dynamic Hybrid Fallback Engine:
+ * Combines Niche Customer Inquiry + Gentle Observation (Missing website / details / automation) + Soft Preview Pitch.
  */
-function generateUltraHumanNicheFallback(
+function generateInquiryPlusPitchFallback(
   lead: LeadForPitch,
   service: OfferedService,
   format: 'whatsapp' | 'email'
@@ -225,253 +225,96 @@ function generateUltraHumanNicheFallback(
   const cat = (lead.category || '').toLowerCase();
   const name = lead.name;
   const loc = lead.address ? lead.address.split(',')[0].trim() : 'aapke yahan';
-  const variant = Math.floor(Math.random() * 5);
+  const hasWebsite = lead.has_website !== false && Boolean(lead.website);
+  const variant = Math.floor(Math.random() * 4);
 
-  // 1. SPECIFIC SERVICE: WHATSAPP AI AGENT & AUTOMATION (Across all niches)
-  if (service === 'whatsapp_ai_agent' || service === 'ai_automation') {
-    const waOptions = [
-      `Hi ${name} team! Quick question tha: WhatsApp pe customer inquiries aur bookings ke liye automatic bot use karte hain ya staff manually handle karta hai? Ek 24/7 smart AI bot ka 30-sec demo share karun?`,
-      `Hello ${name} team! ${loc} mein aapka business notice kiya. Customers ke WhatsApp messages ko 5 second me answer aur qualify karne ke liye ek AI Assistant concept draft kiya hai—kya preview dekhna chahenge?`,
-      `Hi! ${name} ke daily customer inquiries ko automate karke direct appointments book karne ke liye ek smart WhatsApp AI bot ready kiya hai—kya main ek short demo share karun?`,
-      `Namaste ${name} team! Peak hours me customer WhatsApp queries automate karne ke baare mein poochna tha—ek quick 30-sec live concept share karun aapke sath?`,
-    ];
-    return waOptions[variant % waOptions.length];
-  }
-
-  // 2. SPECIFIC SERVICE: SHORT-FORM REELS & VIDEO EDITING
-  if (service === 'content_creation_reels') {
-    const reelOptions = [
-      `Hi ${name} team! ${loc} mein aapke business ke liye 2 high-converting Instagram reels aur customer showcase video concepts script kiye hain—kya preview share karun?`,
-      `Hello! ${name} ke brand visibility ko short-form viral reels aur video editing ke through 3x boost karne ka ek quick plan layout kiya hai—kya samples WhatsApp pe share karun?`,
-      `Hi ${name}! Aapke services aur work ko highlight karne ke liye 2 aesthetic short video concepts format kiye hain—kya main preview clips share karun?`,
-    ];
-    return reelOptions[variant % reelOptions.length];
-  }
-
-  // 3. SPECIFIC SERVICE: META & GOOGLE PAID ADS
-  if (service === 'paid_ads') {
-    const adsOptions = [
-      `Hi ${name} team! ${loc} ke local customers se direct weekly 20+ inquiries attract karne ke liye targeted ads ka ek quick concept layout ready kiya hai—kya share karun?`,
-      `Hello ${name} team! Aapke niche me local customers target karne ke liye high-converting lead generation campaign ka breakdown dekhna chahenge?`,
-    ];
-    return adsOptions[variant % adsOptions.length];
-  }
-
-  // 4. SPECIFIC SERVICE: GOOGLE MAPS LOCAL SEO
-  if (service === 'gmb_local_seo') {
-    const seoOptions = [
-      `Hi ${name} team! Google Maps pe aapki listing dekhi—local search visibility aur direct customer calls double karne ke liye ek 2-page ranking audit prepare ki hai—kya share karun?`,
-      `Hello ${name} team! ${loc} ke area search results me top rank karne aur calls badhane ke liye ek quick audit breakdown ready hai—kya WhatsApp pe share karun?`,
-    ];
-    return seoOptions[variant % seoOptions.length];
-  }
-
-  // 5. NICHE-SPECIFIC DIRECT INQUIRIES (27+ NICHES)
-
-  // TRAVEL & TOURS
+  // 1. TRAVEL & TOURS
   if (/travel|tour|holiday|trip|flight|visa|resort|vacation|trek/i.test(cat)) {
-    const options = [
-      `Hi ${name} team! Next month customized holiday package ke baare mein poochna tha—Manali / Goa ke 4-day tour packages aur itinerary ki details WhatsApp pe mil sakti hain kya?`,
-      `Hello! Family holiday trip plan kar rahe the—kya aapke upcoming customized domestic / international tour packages aur pricing WhatsApp pe share kar sakte hain?`,
-      `Hi ${name}! Customized holiday package booking ka kya process rehta hai aapke yahan? Details aur starting pricing share kar dijiye please.`,
-      `Hello team! Goa ya Himachal ke customized 3-4 days tour package ka rate card WhatsApp pe bhej sakte hain kya?`,
-      `Hi! Weekend getaway trip ke liye best options aur package itinerary check karni thi—details WhatsApp pe share kar sakte hain?`,
-    ];
-    return options[variant % options.length];
+    if (!hasWebsite || service === 'website_design') {
+      const options = [
+        `Hi ${name} team! Next month customized holiday package ke baare mein poochna tha—Manali / Goa ke 4-day tour packages aur itinerary ki details WhatsApp pe mil sakti hain kya?\n\nWaise Google pe search karte time dekha ki aapka direct official website link add nahi hai aur package details online easily nahi dikh rahi hain. Humne aapke liye ek clean 1-page modern booking website ka mockup prepare kiya hai—kya main ek 30-sec preview share karun dekhne ke liye?`,
+        `Hello ${name} team! Family holiday trip plan kar rahe the—kya aapke upcoming tour packages aur pricing WhatsApp pe share kar sakte hain?\n\nWaise notice kiya Google pe direct booking catalogue website link missing hai jisse naye clients miss ho sakte hain. Humne aapke business ke liye ek fast 1-page booking concept ready kiya hai—kya preview dekhna chahenge?`,
+      ];
+      return options[variant % options.length];
+    } else {
+      return `Hi ${name} team! Goa aur Himachal ke customized 3-4 days tour package ka rate card WhatsApp pe bhej sakte hain kya?\n\nWaise notice kiya peak hours me WhatsApp inquiries manually handle karne me time lagta hai. Humne ek 24/7 WhatsApp AI booking assistant ka concept prepare kiya hai—kya main ek quick 30-sec demo share karun?`;
+    }
   }
 
-  // DENTAL & CLINICS
-  if (/dental|dentist|ortho|teeth|tooth/i.test(cat)) {
-    const options = [
-      `Hello doctor / ${name} team! Consultation aur checkup ke liye timings kya rehti hain? Pre-booking zaroori hai ya direct walk-in kar sakte hain?`,
-      `Hi team! Consultation fees aur appointments ke available slots check karne the—WhatsApp pe process share kar sakte hain?`,
-      `Hello! Checkup aur consultation ke liye weekend slots available hain kya? Details mil sakti hain please?`,
-      `Hi doctor! Routine consultation aur treatment charges ki information check karni thi—WhatsApp pe process guide kar dijiye.`,
-      `Hello ${name} team! New patient appointment book karne ka kya process rehta hai aapke clinic me?`,
-    ];
-    return options[variant % options.length];
+  // 2. DENTAL & CLINICS / DOCTORS
+  if (/dental|dentist|clinic|doctor|hospital|ortho|skin|physio|eye|medical/i.test(cat)) {
+    if (!hasWebsite || service === 'website_design') {
+      const options = [
+        `Hello doctor / ${name} team! Consultation aur checkup ke liye timings kya rehti hain? Pre-booking zaroori hai ya direct walk-in kar sakte hain?\n\nWaise Google pe check kiya aapka direct appointment booking website link add nahi hai aur details online nahi dikh rahi hain. Humne clinic ke liye ek clean 1-page modern appointment booking page ka mockup draft kiya hai—kya main ek short preview share karun?`,
+        `Hi team! Consultation fees aur available appointment slots check karne the—WhatsApp pe process share kar sakte hain?\n\nWaise Google search pe website link missing hone ki wajah se new patients ko timings nahi mil pa rahi hain. Humne ek simple 1-page booking concept prepare kiya hai—kya preview share karun?`,
+      ];
+      return options[variant % options.length];
+    } else {
+      return `Hello doctor / ${name} team! Specialist consultation timings aur available slots check karne the—details WhatsApp pe mil sakti hain?\n\nWaise notice kiya WhatsApp pe automatic instant appointment confirmation bot active nahi hai. Humne ek 24/7 AI booking assistant ka concept design kiya hai—kya ek 30-sec demo preview share karun?`;
+    }
   }
 
-  // HOSPITALS & CLINICS
-  if (/hospital|clinic|doctor|ivf|eye|physio|orthopedic|care|medical/i.test(cat)) {
-    const options = [
-      `Hello ${name} team! Doctor consultation timings aur appointment booking process ki details WhatsApp pe mil sakti hain kya?`,
-      `Hi! Specialist consultation ke liye available slots aur fees structure check karna tha—details share kar sakte hain?`,
-      `Hello! Routine checkup aur specialist appointment ke liye booking kaise hoti hai aapke yahan?`,
-      `Hi team! New patient registration aur OPD timings ki details WhatsApp pe share kar dijiye please.`,
-    ];
-    return options[variant % options.length];
+  // 3. RESTAURANTS, CAFES, BAKERIES
+  if (/restaurant|cafe|bakery|food|hotel|bar|pizza|dining|lounge|cater|sweet/i.test(cat)) {
+    if (!hasWebsite || service === 'website_design') {
+      return `Hi ${name} team! Weekend pe family dinner / party celebration ke liye table reservation available hai kya? Menu aur timings share kar sakte hain?\n\nWaise Google pe search karte waqt dekha aapka digital menu aur direct table booking link add nahi hai. Humne aapke brand ke liye ek modern 1-page digital menu & booking landing page ka concept prepare kiya hai—kya main ek quick preview share karun?`;
+    } else {
+      return `Hi ${name} team! Weekend dining ke liye pre-booking aur party packages ki details WhatsApp pe bhej sakte hain kya?\n\nWaise notice kiya customer messages handle karne me delay hone se direct bookings miss ho jaati hain. Humne ek 24/7 WhatsApp AI menu & reservation bot ready kiya hai—kya ek short demo share karun?`;
+    }
   }
 
-  // DERMATOLOGY & SKIN CARE
-  if (/skin|derma|hair|cosmetic|laser|aesthetic/i.test(cat)) {
-    const options = [
-      `Hi ${name} team! Skin consultation aur hair treatment packages ki price list aur appointment slots WhatsApp pe mil sakte hain kya?`,
-      `Hello! Laser treatment aur skincare consultation ka kya process rehta hai? Details share kar dijiye please.`,
-      `Hi! Hair care packages aur consultation fees check karni thi—WhatsApp pe information mil sakti hai?`,
-    ];
-    return options[variant % options.length];
+  // 4. REAL ESTATE & BUILDERS
+  if (/real estate|builder|property|realtor|developer|housing|flat|apartment|plot/i.test(cat)) {
+    if (!hasWebsite || service === 'website_design') {
+      return `Hello ${name} team! ${loc} mein ongoing residential projects ke brochure aur starting price range WhatsApp pe share kar sakte hain kya?\n\nWaise Google pe dekha project details aur floor plans online properly visible nahi hain. Humne aapke properties ke liye ek modern digital brochure & lead capture page ka concept ready kiya hai—kya main ek short preview share karun?`;
+    } else {
+      return `Hello ${name} team! Ongoing residential projects ke brochure aur payment plan details WhatsApp pe share kar dijiye please.\n\nWaise property inquiries ko 5 second me auto-qualify karne ke liye humne ek smart WhatsApp AI bot draft kiya hai—kya ek quick demo share karun?`;
+    }
   }
 
-  // RESTAURANTS & CAFES
-  if (/restaurant|cafe|bakery|food|hotel|bar|pizza|dining|lounge|cater|sweet|cake/i.test(cat)) {
-    const options = [
-      `Hi ${name} team! Weekend pe family dinner / party booking ke liye table reservation available hai kya? Menu aur timings share kar sakte hain?`,
-      `Hello! Small gathering / birthday party celebration ke liye packages aur menu options WhatsApp pe mil sakte hain kya?`,
-      `Hi! Table reservation aur current food menu details check karni thi—kya WhatsApp pe share kar sakte hain?`,
-      `Hello team! Weekend dining ke liye pre-booking slots aur best-seller menu recommendations mil sakte hain kya?`,
-      `Hi ${name}! Group booking aur catering packages ke baare mein poochna tha—pricing details WhatsApp pe bhej dijiye.`,
-    ];
-    return options[variant % options.length];
+  // 5. GYMS & FITNESS
+  if (/gym|fitness|crossfit|yoga|trainer|workout|sports|zumba/i.test(cat)) {
+    if (!hasWebsite || service === 'website_design') {
+      return `Hi ${name} team! Monthly aur quarterly membership ke charges aur timings kya hain? Personal trainer options available hain kya?\n\nWaise Google pe dekha aapka official website link add nahi hai aur packages online nahi dikh rahe hain. Humne gym ke liye ek clean 1-page trial booking page ka mockup design kiya hai—kya main ek preview share karun?`;
+    } else {
+      return `Hi ${name} team! Membership charges aur workout batch timings ki list WhatsApp pe share kar sakte hain?\n\nWaise trial sessions aur inquiries automate karne ke liye ek smart 24/7 WhatsApp bot concept layout kiya hai—kya main ek 30-sec demo preview share karun?`;
+    }
   }
 
-  // REAL ESTATE & BUILDERS
-  if (/real estate|builder|property|realtor|developer|housing|flat|apartment|plot|infra/i.test(cat)) {
-    const options = [
-      `Hello ${name} team! ${loc} mein ongoing residential / commercial projects ke brochure aur starting price range WhatsApp pe share kar sakte hain kya?`,
-      `Hi! Ready to move 2BHK/3BHK flats / plots ki available inventory ki details check karni thi—brochure aur price list bhej sakte hain?`,
-      `Hello! Property investment options aur latest pricing sheets WhatsApp pe mil sakti hain kya?`,
-      `Hi ${name} team! ${loc} ke aas-paas new launched projects ki floor plan aur payment plan details WhatsApp pe share kar dijiye.`,
-      `Hello! Commercial / residential spaces ki current availability aur site visit schedule ka kya process rehta hai?`,
-    ];
-    return options[variant % options.length];
+  // 6. SALONS, SPAS & BEAUTY
+  if (/salon|spa|beauty|parlour|makeup|hair|barber|bridal/i.test(cat)) {
+    if (!hasWebsite || service === 'website_design') {
+      return `Hi ${name} team! Hair treatments aur facial packages ki price list WhatsApp pe mil sakti hai kya? Weekend appointment book karni thi.\n\nWaise Google pe search karte time dekha aapka service price card aur booking link add nahi hai. Humne salon ke liye ek aesthetic 1-page booking concept prepare kiya hai—kya main ek preview share karun?`;
+    } else {
+      return `Hi ${name} team! Available service menu aur weekend slots ke baare mein poochna tha—details share kar dijiye.\n\nWaise WhatsApp pe instant slot booking aur price card auto-reply ke liye humne ek smart AI assistant concept ready kiya hai—kya ek short demo share karun?`;
+    }
   }
 
-  // GYMS & FITNESS
-  if (/gym|fitness|crossfit|yoga|trainer|workout|sports|zumba|dance|martial|pilates/i.test(cat)) {
-    const options = [
-      `Hi ${name} team! Monthly aur quarterly membership ke charges aur timings kya hain? Personal trainer options available hain kya?`,
-      `Hello! Gym admission fees aur morning/evening batch timings ki details WhatsApp pe mil sakti hain?`,
-      `Hi! 3-month membership plans aur trial session ka kya process rehta hai aapke yahan?`,
-      `Hello team! Personal training packages aur gym workout timings ki list WhatsApp pe share kar sakte hain?`,
-      `Hi ${name}! Membership fee structure aur weekend trial slot ke baare mein details bhej dijiye please.`,
-    ];
-    return options[variant % options.length];
+  // 7. INTERIOR DESIGN & ARCHITECTS
+  if (/interior|architect|decor|furniture|renovation|designer/i.test(cat)) {
+    if (!hasWebsite || service === 'website_design') {
+      return `Hi ${name} team! Flat interior design ke basic packages aur portfolio check karna tha—kya details WhatsApp pe share kar sakte hain?\n\nWaise online dekha aapka official website portfolio link missing hai jisse clients designs nahi dekh pa rahe hain. Humne aapke brand ke liye ek modern digital portfolio concept ready kiya hai—kya share karun dekhne ke liye?`;
+    } else {
+      return `Hi ${name} team! 2BHK/3BHK interior design estimate aur recent project pictures WhatsApp pe share kar sakte hain?\n\nWaise customer inquiries ko 5 second me handle karke portfolio deliver karne ke liye humne ek smart WhatsApp bot concept draft kiya hai—kya preview dekhna chahenge?`;
+    }
   }
 
-  // SALONS & SPAS
-  if (/salon|spa|beauty|parlour|makeup|hair|barber|nail|skincare|bridal/i.test(cat)) {
-    const options = [
-      `Hi ${name} team! Hair treatments aur facial packages ki price list WhatsApp pe mil sakti hai kya? Weekend appointment book karni thi.`,
-      `Hello! Bridal makeup aur beauty service packages ki details aur charges share kar sakte hain please?`,
-      `Hi! Available service menu aur weekend slots ke baare mein poochna tha—details share kar dijiye.`,
-      `Hello team! Hair spa aur beauty grooming packages ki rate list WhatsApp pe share kar sakte hain kya?`,
-      `Hi ${name}! Appointment availability aur service price card WhatsApp pe bhej dijiye please.`,
-    ];
-    return options[variant % options.length];
+  // 8. COACHING & EDUCATION
+  if (/coaching|tuition|class|school|academy|institute|ielts|spoken/i.test(cat)) {
+    return `Hello ${name} team! Upcoming batch admission, schedule aur fee structure ki details WhatsApp pe mil sakti hain kya?\n\nWaise Google pe dekha course syllabus aur demo booking details online properly visible nahi hain. Humne institute ke liye ek clean 1-page admission landing page ka concept prepare kiya hai—kya main ek short preview share karun?`;
   }
 
-  // INTERIOR DESIGN & ARCHITECTS
-  if (/interior|architect|decor|furniture|renovation|designer|modular|kitchen|wood/i.test(cat)) {
-    const options = [
-      `Hi ${name} team! Flat interior design ke basic packages aur portfolio check karna tha—kya details WhatsApp pe share kar sakte hain?`,
-      `Hello! New home interior work ke liye consultation ka kya process rehta hai? Initial estimate aur portfolio mil sakta hai?`,
-      `Hi! Modular kitchen aur full interior renovation packages ki basic details dekhni thi—process kya hai aapka?`,
-      `Hello ${name} team! 2BHK/3BHK interior design estimate aur recent project pictures WhatsApp pe share kar sakte hain?`,
-      `Hi! Site visit aur interior consultation schedule karne ke baare mein poochna tha—details share kar dijiye.`,
-    ];
-    return options[variant % options.length];
-  }
-
-  // WEDDING PHOTOGRAPHY & STUDIOS
-  if (/photo|wedding photo|studio|cinematography|camera|videography/i.test(cat)) {
-    const options = [
-      `Hi ${name} team! Upcoming wedding / pre-wedding shoot ke liye dates availability aur photography packages ki details WhatsApp pe mil sakti hain kya?`,
-      `Hello! Pre-wedding aur event photography packages ka pricing card aur portfolio WhatsApp pe share kar sakte hain please?`,
-      `Hi ${name}! Wedding shoot packages aur recent portfolio pictures check karni thi—details bhej sakte hain?`,
-    ];
-    return options[variant % options.length];
-  }
-
-  // EVENT PLANNERS & BANQUETS
-  if (/event|wedding planner|banquet|dj|stage|catering|hall|resort venue/i.test(cat)) {
-    const options = [
-      `Hi ${name} team! Upcoming family function ke liye dates availability aur event decoration packages ki rate list WhatsApp pe mil sakti hai kya?`,
-      `Hello! Banquet hall booking aur party packages ki pricing sheet WhatsApp pe send kar dijiye please.`,
-      `Hi ${name}! Event planning packages aur venue availability check karni thi—details share kar sakte hain?`,
-    ];
-    return options[variant % options.length];
-  }
-
-  // COACHING & EDUCATION
-  if (/coaching|tuition|class|school|academy|institute|ielts|spoken|exam|upsc|jee|neet/i.test(cat)) {
-    const options = [
-      `Hello ${name} team! Upcoming batch admission, schedule aur fee structure ki details WhatsApp pe mil sakti hain kya?`,
-      `Hi! Courses ke syllabus aur demo class schedule ke baare mein poochna tha—details share kar sakte hain?`,
-      `Hello team! New batch timings aur fee structure WhatsApp pe send kar dijiye please.`,
-      `Hi ${name}! Course enrollment aur demo session ka kya process rehta hai aapke yahan?`,
-    ];
-    return options[variant % options.length];
-  }
-
-  // CA & TAX CONSULTANTS
-  if (/ca |chartered|tax|gst|legal|advocate|lawyer|consultant|accountant|auditor/i.test(cat)) {
-    const options = [
-      `Hi ${name} team! Business GST filing aur tax consultation ke charges aur appointment process ki details WhatsApp pe mil sakti hain kya?`,
-      `Hello! Company registration aur accounting service packages ke baare mein poochna tha—details share kar sakte hain?`,
-      `Hi! Consultation slots aur service charges ki details check karni thi—WhatsApp pe share kar dijiye.`,
-    ];
-    return options[variant % options.length];
-  }
-
-  // CAR DETAILING & GARAGES
-  if (/car|auto|bike|garage|motor|detailing|repair|tyre|service|coating|ceramic/i.test(cat)) {
-    const options = [
-      `Hi ${name} team! Car detailing aur ceramic coating / full service ke packages aur pricing WhatsApp pe mil sakti hai kya?`,
-      `Hello! Vehicle service appointment book karne ka kya process rehta hai? Rates aur available slots share kar dijiye.`,
-      `Hi! Service packages aur estimate check karna tha—kya WhatsApp pe details share kar sakte hain?`,
-    ];
-    return options[variant % options.length];
-  }
-
-  // FASHION BOUTIQUES & JEWELLERY
-  if (/boutique|fashion|clothing|dress|jewel|bridal wear|tailor|lehenga|saree/i.test(cat)) {
-    const options = [
-      `Hi ${name} team! Latest designer collection ka catalogue aur custom stitching/order ka process WhatsApp pe share kar sakte hain kya?`,
-      `Hello! Bridal wear aur festive collection ke price range aur designs WhatsApp pe dekh sakte hain kya?`,
-      `Hi! New arrival outfits aur custom fitting charges ki details share kar dijiye please.`,
-    ];
-    return options[variant % options.length];
-  }
-
-  // CLEANING & PEST CONTROL
-  if (/cleaning|pest|ac repair|plumber|electrician|home service|solar/i.test(cat)) {
-    const options = [
-      `Hi ${name} team! Full home deep cleaning aur service packages ki pricing list WhatsApp pe mil sakti hai kya?`,
-      `Hello! Pest control / home service ke available slots aur charges ki information bhej sakte hain please?`,
-      `Hi! Service estimate aur booking process check karna tha—details WhatsApp pe share kar dijiye.`,
-    ];
-    return options[variant % options.length];
-  }
-
-  // PET CARE & GROOMING
-  if (/pet|vet|dog|cat|veterinary|puppy|animal/i.test(cat)) {
-    const options = [
-      `Hi ${name} team! Pet grooming packages aur vet consultation timings ki details WhatsApp pe mil sakti hain kya?`,
-      `Hello! Pet vaccination aur checkup ke liye appointment slots available hain kya? Details bhej dijiye.`,
-    ];
-    return options[variant % options.length];
-  }
-
-  // YOUTUBE CREATORS
+  // 9. YOUTUBE CREATOR
   if (lead.source === 'youtube') {
-    const options = [
-      `Hi ${name}! Aapke channel pe videos kaafi regular aur engaging lagte hain.\n\nEk quick brand collaboration / sponsorship ke baare mein poochna tha—kya aapse yahan WhatsApp ya email pe discuss kar sakte hain?`,
-      `Hello ${name}! Video collaboration aur brand integration ke details check karni thi—commercial rate card WhatsApp ya email pe share kar sakte hain?`,
-      `Hi ${name}! Aapke upcoming videos me brand partnership / sponsorship slots available hain kya? Details share kar dijiye.`,
-    ];
-    return options[variant % options.length];
+    return `Hi ${name}! Aapke YouTube channel pe videos kaafi regular aur engaging lagte hain.\n\nQuick brand collaboration / sponsorship aur short-form video repurposing ke baare mein poochna tha—kya aapse yahan WhatsApp ya email pe discuss kar sakte hain? Ek short concept proposal ready kiya hai.`;
   }
 
-  // UNIVERSAL BUSINESS FALLBACK
-  const defaultOptions = [
-    `Hi ${name} team! ${loc} mein aapka business dekha—aapke current services / packages aur pricing ki details WhatsApp pe share kar sakte hain kya?`,
-    `Hello ${name} team! Ek quick inquiry thi—aapke service packages aur appointment booking ka kya process rehta hai? Details share kar dijiye please.`,
-    `Hi! ${loc} mein aapke services check karne the—kya catalogue / brochure WhatsApp pe bhej sakte hain?`,
-    `Hello team! Aapke latest packages aur pricing list WhatsApp pe share kar sakte hain kya?`,
-    `Hi ${name}! Aapke yahan booking / appointment lene ka kya process rehta hai? Details share kar dijiye please.`,
-  ];
-  return defaultOptions[variant % defaultOptions.length];
+  // 10. GENERAL / UNIVERSAL BUSINESS HYBRID
+  if (!hasWebsite || service === 'website_design') {
+    return `Hi ${name} team! ${loc} mein aapka business dekha—aapke current services/packages aur pricing ki details WhatsApp pe share kar sakte hain kya?\n\nWaise Google pe search karte time dekha aapka official website link add nahi hai aur details online easily nahi mil rahi hain. Humne aapke business ke liye ek clean 1-page booking concept prepare kiya hai—kya main ek 30-sec preview share karun dekhne ke liye?`;
+  }
+
+  return `Hi ${name} team! Aapke latest packages aur service booking process ki details WhatsApp pe share kar sakte hain kya?\n\nWaise customer inquiries ko 24/7 instant answer karne aur direct bookings lene ke liye humne ek smart WhatsApp AI bot concept layout kiya hai—kya main ek short 30-sec demo preview share karun?`;
 }
 
 /**
