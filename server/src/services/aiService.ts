@@ -202,6 +202,14 @@ export async function generatePitch(
         }
       } catch (err: any) {
         console.error(`[AI Engine] Gemini (${modelName}) error:`, err.message);
+        if (
+          err.message?.includes('API_KEY_INVALID') ||
+          err.message?.includes('404') ||
+          err.message?.includes('API key') ||
+          err.message?.includes('not found')
+        ) {
+          break; // Fast failover to instant hybrid engine
+        }
       }
     }
   }
