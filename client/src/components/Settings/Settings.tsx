@@ -7,6 +7,7 @@ import {
   connectWhatsApp,
   disconnectWhatsApp,
   testSmtpSettings,
+  testResendKey,
 } from '../../services/api';
 import { AppSettings, PitchTone, WhatsAppStatusState } from '../../types';
 import {
@@ -62,6 +63,8 @@ export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved }) => {
   const [testResults, setTestResults] = useState<Record<string, { success: boolean; message: string }>>({});
   const [testingSmtp, setTestingSmtp] = useState(false);
   const [smtpResult, setSmtpResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [testingResend, setTestingResend] = useState(false);
+  const [resendResult, setResendResult] = useState<{ success: boolean; message: string } | null>(null);
 
   useEffect(() => {
     loadSettings();
@@ -216,6 +219,27 @@ export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved }) => {
       });
     } finally {
       setTestingSmtp(false);
+    }
+  };
+
+  const handleTestResend = async () => {
+    if (!settings.resendApiKey) return;
+    setTestingResend(true);
+    setResendResult(null);
+    try {
+      await saveSettings(settings);
+      const res = await testResendKey(settings.resendApiKey);
+      setResendResult(res);
+      if (res.success) {
+        confetti({ particleCount: 80, spread: 60, origin: { y: 0.6 } });
+      }
+    } catch (err: any) {
+      setResendResult({
+        success: false,
+        message: err.response?.data?.message || err.message || 'Resend verification failed.',
+      });
+    } finally {
+      setTestingResend(false);
     }
   };
 
@@ -542,6 +566,83 @@ export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved }) => {
                 </div>
               );
             })}
+          </div>
+        </div>
+
+        {/* Resend Email API Configuration Card (Fast & Free) */}
+        <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400">
+                <Mail className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                  <span>Resend Email API (High Speed Auto-Sending)</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/20 text-rose-300">
+                    Recommended ⚡
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Send cold outreach emails directly in the background using your Resend API Key (3,000 Free Emails/Month, Zero Password needed).
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleTestResend}
+              disabled={testingResend || !settings.resendApiKey}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-all disabled:opacity-40"
+            >
+              <RefreshCw className={`h-3 w-3 ${testingResend ? 'animate-spin' : ''}`} />
+              <span>{testingResend ? 'Testing...' : 'Test Resend API'}</span>
+            </button>
+          </div>
+
+          {resendResult && (
+            <div
+              className={`p-3 rounded-xl text-xs flex items-center gap-2 ${
+                resendResult.success
+                  ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20'
+                  : 'bg-rose-500/10 text-rose-300 border border-rose-500/20'
+              }`}
+            >
+              {resendResult.success ? (
+                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
+              ) : (
+                <XCircle className="h-4 w-4 shrink-0 text-rose-400" />
+              )}
+              <span>{resendResult.message}</span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-300">
+                Resend API Key
+              </label>
+              <input
+                type="password"
+                value={settings.resendApiKey || ''}
+                onChange={(e) => setSettings({ ...settings, resendApiKey: e.target.value })}
+                placeholder="re_..."
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 placeholder-slate-500 focus:border-rose-500 focus:ring-1 focus:ring-rose-500 font-mono"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-300">
+                Sender Email Address / From Address
+              </label>
+              <input
+                type="text"
+                value={settings.resendFromEmail || 'onboarding@resend.dev'}
+                onChange={(e) => setSettings({ ...settings, resendFromEmail: e.target.value })}
+                placeholder="e.g. onboarding@resend.dev or your custom domain email"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 placeholder-slate-500 focus:border-rose-500 focus:ring-1 focus:ring-rose-500 font-mono"
+              />
+            </div>
           </div>
         </div>
 

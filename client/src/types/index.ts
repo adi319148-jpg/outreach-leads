@@ -132,6 +132,9 @@ export interface AppSettings {
   smtpUser?: string;
   smtpPass?: string;
   smtpFrom?: string;
+  resendApiKey?: string;
+  resendFromEmail?: string;
+  hasResendKey?: boolean;
   detectedGoogleProject?: {
     found: boolean;
     projectId?: string;

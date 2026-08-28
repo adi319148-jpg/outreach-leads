@@ -133,4 +133,16 @@ router.post('/test', async (req: Request, res: Response) => {
   }
 });
 
+// 4. Test Resend API Key
+router.post('/test-resend', async (req: Request, res: Response) => {
+  try {
+    const { resendApiKey } = req.body || {};
+    const { testResendConnection } = await import('../services/emailService');
+    const result = await testResendConnection(resendApiKey);
+    return res.json(result);
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 export default router;

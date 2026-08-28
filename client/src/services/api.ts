@@ -274,6 +274,11 @@ export const testSmtpSettings = async (credentials?: {
   return res.data;
 };
 
+export const testResendKey = async (resendApiKey?: string): Promise<{ success: boolean; message: string }> => {
+  const res = await api.post('/email/test-resend', { resendApiKey });
+  return res.data;
+};
+
 export const getExportCsvUrl = (): string => {
   return '/api/leads/export/csv';
 };
