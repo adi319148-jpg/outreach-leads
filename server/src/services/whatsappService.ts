@@ -1,4 +1,10 @@
-import { Client, LocalAuth } from 'whatsapp-web.js';
+import makeWASocket, {
+  useMultiFileAuthState,
+  DisconnectReason,
+  WASocket,
+  fetchLatestBaileysVersion,
+} from '@whiskeysockets/baileys';
+import pino from 'pino';
 import QRCode from 'qrcode';
 import path from 'path';
 import fs from 'fs';
@@ -35,8 +41,7 @@ export interface BatchWhatsAppProgress {
 interface SessionRecord {
   id: string;
   name: string;
-  wwebClientId: string;
-  client: Client | null;
+  sock: WASocket | null;
   state: WhatsAppAccountState;
   isInitializing: boolean;
 }
@@ -61,74 +66,14 @@ let batchProgress: BatchWhatsAppProgress = {
   logs: [],
 };
 
-function getBrowserExecutablePath(): string | undefined {
-  if (process.env.PUPPETEER_EXECUTABLE_PATH && fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
-    return process.env.PUPPETEER_EXECUTABLE_PATH;
-  }
-
-  const possiblePaths = [
-    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
-    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
-    process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, 'Google\\Chrome\\Application\\chrome.exe') : '',
-    process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, 'Microsoft\\Edge\\Application\\msedge.exe') : '',
-    '/usr/bin/chromium',
-    '/usr/bin/chromium-browser',
-    '/usr/bin/google-chrome-stable',
-    '/usr/bin/google-chrome',
-  ].filter(Boolean);
-
-  for (const p of possiblePaths) {
-    if (fs.existsSync(p)) {
-      console.log(`[WhatsApp] Auto-detected browser executable: ${p}`);
-      return p;
-    }
-  }
-  return undefined;
-}
-
 function getAuthDirectory(): string {
-  return process.env.WWEBJS_AUTH_PATH
-    ? path.resolve(process.env.WWEBJS_AUTH_PATH)
-    : path.resolve(__dirname, '../../.wwebjs_auth');
-}
-
-function cleanSessionLockFiles(sessionDirPath: string) {
-  try {
-    if (!fs.existsSync(sessionDirPath)) return;
-    const lockFiles = [
-      'SingletonLock',
-      'SingletonCookie',
-      'SingletonSocket',
-      'DevToolsActivePort',
-      'lockfile',
-      'CrashpadMetrics-active.pma',
-      'BrowserMetrics-spare.pma',
-    ];
-    for (const file of lockFiles) {
-      const filePath = path.join(sessionDirPath, file);
-      if (fs.existsSync(filePath)) {
-        try {
-          fs.unlinkSync(filePath);
-          console.log(`[WhatsApp] Cleaned stale lock: ${file}`);
-        } catch (e) {}
-      }
-    }
-    const defaultSub = path.join(sessionDirPath, 'Default');
-    if (fs.existsSync(defaultSub)) {
-      for (const file of lockFiles) {
-        const filePath = path.join(defaultSub, file);
-        if (fs.existsSync(filePath)) {
-          try {
-            fs.unlinkSync(filePath);
-          } catch (e) {}
-        }
-      }
-    }
-  } catch (err) {
-    console.warn('[WhatsApp] Lock cleanup notice:', err);
+  const base = process.env.BAILEYS_AUTH_PATH
+    ? path.resolve(process.env.BAILEYS_AUTH_PATH)
+    : path.resolve(__dirname, '../../.baileys_auth');
+  if (!fs.existsSync(base)) {
+    fs.mkdirSync(base, { recursive: true });
   }
+  return base;
 }
 
 function getOrCreateSessionRecord(sessionId: string, accountName?: string): SessionRecord {
@@ -140,8 +85,7 @@ function getOrCreateSessionRecord(sessionId: string, accountName?: string): Sess
   const newRecord: SessionRecord = {
     id: sessionId,
     name: accountName || `WhatsApp Account ${sessions.size + 1}`,
-    wwebClientId: `session_${cleanSessionId}`,
-    client: null,
+    sock: null,
     isInitializing: false,
     state: {
       id: sessionId,
@@ -186,7 +130,7 @@ export function setEmergencyKillSwitch(active: boolean): { success: boolean; kil
   }
 
   if (active) {
-    console.log('[EMERGENCY KILL SWITCH] ACTIVATED! Freezing all WhatsApp sending.');
+    console.log('[EMERGENCY KILL SWITCH] ACTIVATED! Halting all WhatsApp queues.');
     stopBatchWhatsApp();
     return {
       success: true,
@@ -223,7 +167,7 @@ export async function initializeWhatsAppSession(
 ): Promise<WhatsAppAccountState> {
   const session = getOrCreateSessionRecord(sessionId, accountName);
 
-  if (session.client && !forceRestart && (session.state.status === 'connected' || session.state.status === 'qr_ready')) {
+  if (session.sock && !forceRestart && (session.state.status === 'connected' || session.state.status === 'qr_ready')) {
     return session.state;
   }
 
@@ -237,174 +181,165 @@ export async function initializeWhatsAppSession(
 
   (async () => {
     try {
-      if (session.client) {
+      if (session.sock) {
         try {
-          const pupBrowser = (session.client as any).pupBrowser;
-          if (pupBrowser) {
-            await pupBrowser.close().catch(() => {});
-          }
-          await session.client.destroy().catch(() => {});
-        } catch (e) {
-          console.log(`[WhatsApp ${sessionId}] Previous client destroy notice:`, e);
-        }
-        session.client = null;
+          session.sock.end(undefined);
+        } catch (e) {}
+        session.sock = null;
       }
 
-      const authPath = getAuthDirectory();
-      const executablePath = getBrowserExecutablePath();
+      const authBase = getAuthDirectory();
+      const cleanSessionId = sessionId.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const sessionAuthDir = path.join(authBase, `session_${cleanSessionId}`);
 
-      // If force restart or error was encountered, randomize sub-client id to ensure fresh unblocked folder
-      if (forceRestart) {
-        session.wwebClientId = `session_${sessionId}_${Date.now()}`;
+      if (forceRestart && fs.existsSync(sessionAuthDir)) {
+        try {
+          fs.rmSync(sessionAuthDir, { recursive: true, force: true });
+        } catch (e) {}
       }
 
-      const sessionDirPath = path.join(authPath, `session-${session.wwebClientId}`);
-      cleanSessionLockFiles(sessionDirPath);
+      console.log(`[Baileys ${sessionId}] Initializing WebSocket session at ${sessionAuthDir}...`);
 
-      console.log(`[WhatsApp ${sessionId}] Initializing client (${session.wwebClientId}) with browser: ${executablePath || 'Bundled'}`);
+      const { state, saveCreds } = await useMultiFileAuthState(sessionAuthDir);
+      const { version } = await fetchLatestBaileysVersion().catch(() => ({ version: [2, 3000, 1015901307] as any }));
 
-      const client = new Client({
-        authStrategy: new LocalAuth({
-          clientId: session.wwebClientId,
-          dataPath: authPath,
-        }),
-        webVersionCache: {
-          type: 'remote',
-          remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
-        },
-        puppeteer: {
-          executablePath,
-          headless: true,
-          args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--no-first-run',
-            '--no-zygote',
-            '--disable-gpu',
-            '--disable-extensions',
-          ],
-        },
+      const sock = makeWASocket({
+        version,
+        auth: state,
+        logger: pino({ level: 'silent' }),
+        printQRInTerminal: false,
+        browser: ['Outreach Leads Hub', 'Chrome', '1.0.0'],
+        syncFullHistory: false,
+        generateHighQualityLinkPreview: false,
       });
 
-      session.client = client;
+      session.sock = sock;
 
-      client.on('qr', async (qr) => {
-        console.log(`[WhatsApp ${sessionId}] QR received! Generating QR image...`);
-        try {
-          const qrDataUrl = await QRCode.toDataURL(qr, {
-            width: 320,
-            margin: 2,
-            color: { dark: '#0f172a', light: '#ffffff' },
-          });
-          session.state.status = 'qr_ready';
-          session.state.qrCodeDataUrl = qrDataUrl;
+      sock.ev.on('creds.update', saveCreds);
+
+      sock.ev.on('connection.update', async (update) => {
+        const { connection, lastDisconnect, qr } = update;
+
+        if (qr) {
+          console.log(`[Baileys ${sessionId}] ⚡ QR Received! Rendering image...`);
+          try {
+            const qrDataUrl = await QRCode.toDataURL(qr, {
+              width: 320,
+              margin: 2,
+              color: { dark: '#0f172a', light: '#ffffff' },
+            });
+            session.state.status = 'qr_ready';
+            session.state.qrCodeDataUrl = qrDataUrl;
+            session.state.errorMessage = null;
+            session.isInitializing = false;
+            console.log(`[Baileys ${sessionId}] ✅ QR Code ready for mobile scan!`);
+          } catch (err: any) {
+            session.state.errorMessage = 'Failed to generate QR code';
+            session.isInitializing = false;
+          }
+        }
+
+        if (connection === 'open') {
+          console.log(`[Baileys ${sessionId}] 🎉 Connection OPEN and READY!`);
+          const rawId = sock.user?.id || '';
+          const phone = rawId.split(':')[0].replace(/[^0-9]/g, '') || rawId.replace(/[^0-9]/g, '') || 'Linked User';
+          const name = sock.user?.name || session.name || 'WhatsApp Account';
+
+          session.state.status = 'connected';
+          session.state.qrCodeDataUrl = null;
+          session.state.userPhone = phone;
+          session.state.userName = name;
+          session.state.lastActive = new Date().toISOString();
           session.state.errorMessage = null;
           session.isInitializing = false;
-          console.log(`[WhatsApp ${sessionId}] ✅ QR Code is READY for scan!`);
-        } catch (err: any) {
-          session.state.errorMessage = 'Failed to generate QR image';
-          session.isInitializing = false;
+
+          // Save in SQLite DB
+          run(
+            `INSERT INTO whatsapp_accounts (session_id, account_name, phone_number, status, last_active)
+             VALUES (?, ?, ?, 'connected', CURRENT_TIMESTAMP)
+             ON CONFLICT(session_id) DO UPDATE SET
+               account_name = excluded.account_name,
+               phone_number = excluded.phone_number,
+               status = 'connected',
+               last_active = CURRENT_TIMESTAMP`,
+            [sessionId, session.name, phone]
+          ).catch(() => {});
+        }
+
+        if (connection === 'close') {
+          const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
+          const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+
+          console.log(`[Baileys ${sessionId}] Connection closed (statusCode: ${statusCode}, shouldReconnect: ${shouldReconnect})`);
+
+          if (!shouldReconnect) {
+            session.state.status = 'disconnected';
+            session.state.qrCodeDataUrl = null;
+            session.state.userPhone = null;
+            session.state.userName = null;
+            session.state.errorMessage = 'Logged out from device.';
+            session.isInitializing = false;
+            session.sock = null;
+            run("UPDATE whatsapp_accounts SET status = 'disconnected' WHERE session_id = ?", [sessionId]).catch(() => {});
+          } else {
+            session.state.status = 'connecting';
+            // Auto reconnect
+            setTimeout(() => {
+              initializeWhatsAppSession(sessionId, accountName, false).catch(() => {});
+            }, 3000);
+          }
         }
       });
 
-      client.on('authenticated', () => {
-        console.log(`[WhatsApp ${sessionId}] Authenticated successfully!`);
-        session.state.status = 'connecting';
-        session.state.qrCodeDataUrl = null;
-        session.state.errorMessage = null;
-      });
-
-      client.on('auth_failure', (msg) => {
-        console.error(`[WhatsApp ${sessionId}] Auth failure:`, msg);
-        session.state.status = 'disconnected';
-        session.state.qrCodeDataUrl = null;
-        session.state.errorMessage = `Authentication failed: ${msg}`;
-        session.isInitializing = false;
-      });
-
-      client.on('ready', () => {
-        console.log(`[WhatsApp ${sessionId}] READY and CONNECTED!`);
-        const phone = client?.info?.wid?.user || 'Connected User';
-        const name = client?.info?.pushname || session.name || 'WhatsApp User';
-
-        session.state.status = 'connected';
-        session.state.qrCodeDataUrl = null;
-        session.state.userPhone = phone;
-        session.state.userName = name;
-        session.state.lastActive = new Date().toISOString();
-        session.state.errorMessage = null;
-        session.isInitializing = false;
-
-        // Persist to DB
-        run(
-          `INSERT INTO whatsapp_accounts (session_id, account_name, phone_number, status, last_active)
-           VALUES (?, ?, ?, 'connected', CURRENT_TIMESTAMP)
-           ON CONFLICT(session_id) DO UPDATE SET
-             account_name = excluded.account_name,
-             phone_number = excluded.phone_number,
-             status = 'connected',
-             last_active = CURRENT_TIMESTAMP`,
-          [sessionId, session.name, phone]
-        ).catch(() => {});
-      });
-
-      client.on('disconnected', (reason) => {
-        console.log(`[WhatsApp ${sessionId}] Disconnected:`, reason);
-        session.state.status = 'disconnected';
-        session.state.qrCodeDataUrl = null;
-        session.state.userPhone = null;
-        session.state.userName = null;
-        session.state.errorMessage = `Disconnected: ${reason}`;
-        session.isInitializing = false;
-
-        run("UPDATE whatsapp_accounts SET status = 'disconnected' WHERE session_id = ?", [sessionId]).catch(() => {});
-      });
-
-      // Inbound reply tracker
-      client.on('message', async (msg) => {
+      // Inbound Messages Listener
+      sock.ev.on('messages.upsert', async ({ messages, type }) => {
         try {
-          if ((msg as any).isGroupMsg || (msg.from && msg.from.includes('status@broadcast'))) return;
-          const fromPhone = (msg.from || '').replace('@c.us', '').replace(/[^0-9]/g, '');
-          const body = msg.body || '';
+          if (type !== 'notify') return;
+          for (const msg of messages) {
+            if (msg.key.fromMe || !msg.message) continue;
 
-          const phoneTail = fromPhone.slice(-8);
-          const matchingLead = await get(
-            'SELECT * FROM leads WHERE phone LIKE ? OR phone LIKE ? OR phone LIKE ?',
-            [`%${fromPhone}%`, `%${phoneTail}%`, `%${fromPhone.slice(-10)}%`]
-          );
+            const remoteJid = msg.key.remoteJid || '';
+            if (remoteJid.includes('@g.us') || remoteJid.includes('broadcast')) continue;
 
-          const leadId = (matchingLead as any)?.id || null;
-          const leadName = (matchingLead as any)?.name || 'Prospect';
-          const originalPitch = (matchingLead as any)?.pitch || null;
+            const fromPhone = remoteJid.replace('@s.whatsapp.net', '').replace(/[^0-9]/g, '');
+            const body =
+              msg.message.conversation ||
+              msg.message.extendedTextMessage?.text ||
+              msg.message.imageMessage?.caption ||
+              '';
 
-          await run(
-            `INSERT INTO inbound_replies (lead_id, channel, sender_id, sender_name, message_text, original_pitch)
-             VALUES (?, 'whatsapp', ?, ?, ?, ?)`,
-            [leadId, fromPhone, leadName, body, originalPitch]
-          );
+            if (!body.trim()) continue;
 
-          if (leadId) {
-            await run("UPDATE leads SET status = 'replied', updated_at = CURRENT_TIMESTAMP WHERE id = ?", [leadId]);
+            console.log(`[Baileys Inbound ${sessionId}] Message from ${fromPhone}: "${body.slice(0, 50)}"`);
+
+            const phoneTail = fromPhone.slice(-8);
+            const matchingLead = await get(
+              'SELECT * FROM leads WHERE phone LIKE ? OR phone LIKE ? OR phone LIKE ?',
+              [`%${fromPhone}%`, `%${phoneTail}%`, `%${fromPhone.slice(-10)}%`]
+            );
+
+            const leadId = (matchingLead as any)?.id || null;
+            const leadName = (matchingLead as any)?.name || 'Prospect';
+            const originalPitch = (matchingLead as any)?.pitch || null;
+
+            await run(
+              `INSERT INTO inbound_replies (lead_id, channel, sender_id, sender_name, message_text, original_pitch)
+               VALUES (?, 'whatsapp', ?, ?, ?, ?)`,
+              [leadId, fromPhone, leadName, body, originalPitch]
+            );
+
+            if (leadId) {
+              await run("UPDATE leads SET status = 'replied', updated_at = CURRENT_TIMESTAMP WHERE id = ?", [leadId]);
+            }
           }
         } catch (err) {
-          console.error(`[WhatsApp Inbound ${sessionId}] Error:`, err);
+          console.error(`[Baileys Inbound ${sessionId}] Error processing message:`, err);
         }
       });
-
-      await client.initialize();
     } catch (err: any) {
-      console.error(`[WhatsApp ${sessionId}] Initialization error:`, err.message || err);
-
-      // If directory was locked, retry once with fresh timestamped session clientId
-      if (err.message && err.message.includes('browser is already running') && !forceRestart) {
-        console.log(`[WhatsApp ${sessionId}] Retrying with fresh session folder...`);
-        return initializeWhatsAppSession(sessionId, accountName, true);
-      }
-
+      console.error(`[Baileys ${sessionId}] Initialization error:`, err);
       session.state.status = 'error';
-      session.state.errorMessage = err.message || 'Failed to initialize WhatsApp Web';
+      session.state.errorMessage = err.message || 'Failed to initialize WhatsApp connection';
       session.isInitializing = false;
     }
   })();
@@ -419,24 +354,23 @@ export async function initializeWhatsApp(forceRestart: boolean = false): Promise
 
 export async function disconnectWhatsAppSession(sessionId: string): Promise<WhatsAppAccountState> {
   const session = sessions.get(sessionId);
-  if (session && session.client) {
+  if (session && session.sock) {
     try {
-      const pupBrowser = (session.client as any).pupBrowser;
-      if (pupBrowser) {
-        await pupBrowser.close().catch(() => {});
-      }
-      await session.client.logout().catch(() => {});
-      await session.client.destroy().catch(() => {});
-    } catch (err) {
-      console.log(`[WhatsApp ${sessionId}] Logout notice:`, err);
-    }
-    session.client = null;
+      session.sock.end(undefined);
+    } catch (e) {}
+    session.sock = null;
   }
 
-  const authPath = getAuthDirectory();
+  const authBase = getAuthDirectory();
+  const cleanSessionId = sessionId.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const sessionAuthDir = path.join(authBase, `session_${cleanSessionId}`);
+  if (fs.existsSync(sessionAuthDir)) {
+    try {
+      fs.rmSync(sessionAuthDir, { recursive: true, force: true });
+    } catch (e) {}
+  }
+
   if (session) {
-    const sessionDirPath = path.join(authPath, `session-${session.wwebClientId}`);
-    cleanSessionLockFiles(sessionDirPath);
     session.state.status = 'disconnected';
     session.state.qrCodeDataUrl = null;
     session.state.userPhone = null;
@@ -455,7 +389,7 @@ export async function disconnectWhatsApp(): Promise<WhatsAppAccountState> {
 }
 
 export function getConnectedSessions(): SessionRecord[] {
-  return Array.from(sessions.values()).filter((s) => s.client && s.state.status === 'connected');
+  return Array.from(sessions.values()).filter((s) => s.sock && s.state.status === 'connected');
 }
 
 export async function sendDirectWhatsApp(
@@ -478,13 +412,11 @@ export async function sendDirectWhatsApp(
     };
   }
 
-  // Pick target session
   let targetSession: SessionRecord = connected[0];
   if (preferredSessionId) {
     const found = connected.find((s) => s.id === preferredSessionId);
     if (found) targetSession = found;
   } else if (connected.length > 1) {
-    // Round-robin selection
     targetSession = connected[roundRobinIndex % connected.length];
     roundRobinIndex = (roundRobinIndex + 1) % connected.length;
   }
@@ -505,10 +437,10 @@ export async function sendDirectWhatsApp(
       cleanPhone = `91${cleanPhone.slice(1)}`;
     }
 
-    const formattedId = `${cleanPhone}@c.us`;
-    console.log(`[WhatsApp Multi-Pool] Dispatching to ${formattedId} via [${targetSession.name}]...`);
+    const jid = `${cleanPhone}@s.whatsapp.net`;
+    console.log(`[Baileys Multi-Pool] Dispatching message to ${jid} via [${targetSession.name}]...`);
 
-    await targetSession.client!.sendMessage(formattedId, message);
+    await targetSession.sock!.sendMessage(jid, { text: message });
 
     return {
       success: true,
@@ -516,7 +448,7 @@ export async function sendDirectWhatsApp(
       usedAccountName: targetSession.name,
     };
   } catch (error: any) {
-    console.error(`[WhatsApp] Failed to send via ${targetSession.name}:`, error);
+    console.error(`[Baileys] Failed to send via ${targetSession.name}:`, error);
     return {
       success: false,
       message: error.message || 'Failed to send WhatsApp message.',
@@ -597,11 +529,8 @@ export async function startAntiBanBatchWhatsApp(
     logs: [],
   };
 
-  // Run in background asynchronously
   (async () => {
-    console.log(
-      `[WhatsApp Multi-Batch] Starting campaign for ${eligibleLeads.length} leads across ${accountsCount} account(s)...`
-    );
+    console.log(`[Baileys Multi-Batch] Starting campaign for ${eligibleLeads.length} leads across ${accountsCount} account(s)...`);
 
     for (let i = 0; i < eligibleLeads.length; i++) {
       if (cancelBatchRequested || isEmergencyKillSwitchActive) {
@@ -635,14 +564,13 @@ export async function startAntiBanBatchWhatsApp(
           cleanPhone = `91${cleanPhone.slice(1)}`;
         }
 
-        const formattedId = `${cleanPhone}@c.us`;
-        await activeSession.client!.sendMessage(formattedId, lead.message);
+        const jid = `${cleanPhone}@s.whatsapp.net`;
+        await activeSession.sock!.sendMessage(jid, { text: lead.message });
 
         sendSuccess = true;
         batchProgress.sentCount += 1;
-        logMsg = `Dispatched via ${activeAccountName} (${activeSession.state.userPhone || 'OK'})`;
+        logMsg = `Dispatched via ${activeAccountName} (+${activeSession.state.userPhone || 'OK'})`;
 
-        // Update database
         await run(
           "UPDATE leads SET status = 'contacted', in_campaign_queue = 0, last_contacted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
           [lead.id]
@@ -654,7 +582,7 @@ export async function startAntiBanBatchWhatsApp(
       } catch (err: any) {
         batchProgress.failedCount += 1;
         logMsg = `Error via ${activeAccountName}: ${err.message || 'Send failed'}`;
-        console.error(`[WhatsApp Multi-Batch] Error sending to ${lead.name}:`, err);
+        console.error(`[Baileys Multi-Batch] Error sending to ${lead.name}:`, err);
       }
 
       batchProgress.logs.unshift({
@@ -666,7 +594,6 @@ export async function startAntiBanBatchWhatsApp(
         accountName: activeAccountName,
       });
 
-      // Divide effective delay by accountsCount while keeping individual number safe!
       if (i < eligibleLeads.length - 1 && !cancelBatchRequested && !isEmergencyKillSwitchActive) {
         const rawDelay = Math.floor(Math.random() * (maxDelaySeconds - minDelaySeconds + 1)) + minDelaySeconds;
         const adjustedDelay = Math.max(8, Math.round(rawDelay / Math.max(1, accountsCount)));
