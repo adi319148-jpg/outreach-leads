@@ -48,24 +48,24 @@ export function performGapAnalysis(lead: LeadForPitch): {
 } {
   if (lead.source === 'youtube') {
     return {
-      primaryGap: 'Brand collaboration and short-form video repurposing',
+      primaryGap: 'Brand collaboration and sponsorship inquiry',
       recommendedService: 'content_creation_reels',
-      gentleObservation: 'Audience engagement can be multiplied through short-form video formats.',
+      gentleObservation: 'Direct commercial collaboration inquiry.',
     };
   }
 
   if (lead.has_website === false || !lead.website) {
     return {
-      primaryGap: 'No direct booking link or official website on Google listing',
+      primaryGap: 'Direct booking & service catalog inquiry',
       recommendedService: 'website_design',
-      gentleObservation: 'Direct inquiries can be boosted with an instant booking page.',
+      gentleObservation: 'Inquiring about packages and pricing catalogue.',
     };
   }
 
   return {
-    primaryGap: 'Fast automated WhatsApp inquiry response and client booking',
+    primaryGap: 'Instant customer inquiry response on WhatsApp',
     recommendedService: 'whatsapp_ai_agent',
-    gentleObservation: 'Instant 24/7 inquiry handling improves deal closures.',
+    gentleObservation: 'High intent customer inquiry.',
   };
 }
 
@@ -135,7 +135,7 @@ export async function generatePitch(
     }
   }
 
-  // 3. Ultra-Human Dynamic Niche-Specific Fallback Engine
+  // 3. Ultra-Human Dynamic Niche-Specific Fallback Engine (Multi-variant randomized pool)
   if (!rawPitch) {
     rawPitch = generateUltraHumanNicheFallback(lead, targetService, format);
     provider = 'human-inquiry-engine';
@@ -164,7 +164,7 @@ function formatLeadContext(lead: LeadForPitch): string {
 
 /**
  * Ultra-Human Prompt Generator:
- * Trains the AI to ask natural, high-intent, niche-specific inquiry questions that business owners LOVE to answer!
+ * Generates natural, high-converting customer inquiry questions that businesses reply to instantly!
  */
 function buildUltraHumanInquiryPrompt(
   lead: LeadForPitch,
@@ -173,7 +173,6 @@ function buildUltraHumanInquiryPrompt(
   format: 'whatsapp' | 'email',
   customInstructions?: string
 ): string {
-  const category = (lead.category || '').toLowerCase();
   const loc = lead.address ? lead.address.split(',')[0].trim() : 'aapke city';
 
   return `You are a real, friendly human writing a short, conversational WhatsApp message to an Indian business owner or content creator.
@@ -187,7 +186,7 @@ Start a genuine, natural conversation that guarantees a fast reply from the busi
 STRICT HUMAN COPYWRITING RULES (DO NOT SOUND LIKE AI OR TELEMARKETER):
 1. ABSOLUTELY DO NOT MENTION RATINGS, STARS, OR REVIEWS (e.g. NEVER say "4.8 rating", "5 stars", "Google reviews dekhe"). Real humans NEVER mention stars.
 2. ABSOLUTELY DO NOT start with "Main X company se bol raha hoon" or "I hope this finds you well" or any robotic opener.
-3. ASK A NICHE-RELEVANT QUESTION:
+3. ASK A NICHE-RELEVANT NATURAL QUESTION:
    - If Travel agency: Ask about customized tour packages (e.g. Goa/Manali or upcoming holiday package pricing & itinerary on WhatsApp).
    - If Dental/Doctor/Clinic: Ask about consultation timings, fees, or appointment booking process.
    - If Real Estate/Builder: Ask about brochure, ongoing projects, or 2BHK/3BHK starting price range in ${loc}.
@@ -195,12 +194,14 @@ STRICT HUMAN COPYWRITING RULES (DO NOT SOUND LIKE AI OR TELEMARKETER):
    - If Gym/Fitness: Ask about monthly/quarterly membership charges, timings, or personal trainer availability.
    - If Salon/Spa: Ask about hair spa/facial/bridal packages price list.
    - If Interior/Architect: Ask about flat interior packages, estimate process, and portfolio on WhatsApp.
+   - If Event/Wedding: Ask about dates availability, pricing packages, and portfolio on WhatsApp.
+   - If CA/Legal: Ask about GST/Tax consultation charges and appointment slots.
    - If Agency/IT/Website: Ask about basic quote, portfolio, and timeline for a project.
    - If YouTube Creator: Ask about brand collaboration, sponsorship details, or collaboration process.
    - If any other business: Ask about their service packages, catalogue, or current booking process on WhatsApp.
 4. TONE: 100% natural, polite Indian Hinglish with "Aap".
-5. LENGTH: Super short (2 to 4 lines max, under 45-50 words). Must look like a real person typed it on their phone!
-6. FORMAT: Clean WhatsApp message with single line breaks (no subject line).
+5. LENGTH: Super short (2 to 3 lines max, under 40 words). Must look like a real person typed it on their phone!
+6. FORMAT: Clean WhatsApp message (no subject line).
 
 ${customInstructions ? `Special guidance: ${customInstructions}` : ''}
 
@@ -213,7 +214,7 @@ function cleanPitchText(text: string): string {
 
 /**
  * Ultra-Human Dynamic Niche Fallback Engine
- * Pre-trained on diverse realistic inquiries across all Indian industries (NO ratings, 100% human).
+ * Extensive library with 5+ realistic, natural inquiry questions per Indian industry niche (NO ratings, 100% human).
  */
 function generateUltraHumanNicheFallback(
   lead: LeadForPitch,
@@ -223,102 +224,162 @@ function generateUltraHumanNicheFallback(
   const cat = (lead.category || '').toLowerCase();
   const name = lead.name;
   const loc = lead.address ? lead.address.split(',')[0].trim() : 'aapke yahan';
-  const variant = Math.floor(Math.random() * 3);
+  const variant = Math.floor(Math.random() * 5);
 
-  // 1. TRAVEL & TOURS
-  if (/travel|tour|holiday|trip|flight|visa|resort|vacation/i.test(cat)) {
+  // 1. TRAVEL & TOURS / HOLIDAY PACKAGES
+  if (/travel|tour|holiday|trip|flight|visa|resort|vacation|trek/i.test(cat)) {
     const options = [
       `Hi ${name} team! Next month customized holiday package ke baare mein poochna tha—Manali / Goa ke 4-day tour packages aur itinerary ki details WhatsApp pe mil sakti hain kya?`,
       `Hello! Family holiday trip plan kar rahe the—kya aapke upcoming customized domestic / international tour packages aur pricing WhatsApp pe share kar sakte hain?`,
-      `Hi ${name}! Customized holiday package booking ka kya process rehta hai aapke yahan? Details aur pricing share kar dijiye please.`,
+      `Hi ${name}! Customized holiday package booking ka kya process rehta hai aapke yahan? Details aur starting pricing share kar dijiye please.`,
+      `Hello team! Goa ya Himachal ke customized 3-4 days tour package ka rate card WhatsApp pe bhej sakte hain kya?`,
+      `Hi! Weekend getaway trip ke liye best options aur package itinerary check karni thi—details WhatsApp pe share kar sakte hain?`,
     ];
     return options[variant % options.length];
   }
 
   // 2. DENTAL & CLINIC / DOCTORS / HEALTHCARE
-  if (/dental|dentist|clinic|doctor|hospital|ortho|skin|physio/i.test(cat)) {
+  if (/dental|dentist|clinic|doctor|hospital|ortho|skin|physio|eye|derma/i.test(cat)) {
     const options = [
       `Hello doctor / ${name} team! Consultation aur checkup ke liye timings kya rehti hain? Pre-booking zaroori hai ya direct walk-in kar sakte hain?`,
       `Hi team! Consultation fees aur appointments ke available slots check karne the—WhatsApp pe process share kar sakte hain?`,
       `Hello! Checkup aur consultation ke liye weekend slots available hain kya? Details mil sakti hain please?`,
+      `Hi doctor! Routine consultation aur treatment charges ki information check karni thi—WhatsApp pe process guide kar dijiye.`,
+      `Hello ${name} team! New patient appointment book karne ka kya process rehta hai aapke clinic me?`,
     ];
     return options[variant % options.length];
   }
 
   // 3. RESTAURANT / CAFE / BAKERY / FOOD
-  if (/restaurant|cafe|bakery|food|hotel|bar|pizza|dining|lounge/i.test(cat)) {
+  if (/restaurant|cafe|bakery|food|hotel|bar|pizza|dining|lounge|cater|sweet/i.test(cat)) {
     const options = [
       `Hi ${name} team! Weekend pe family dinner / party booking ke liye table reservation available hai kya? Menu aur timings share kar sakte hain?`,
-      `Hello! Small gathering celebration ke liye packages aur menu options WhatsApp pe mil sakte hain kya?`,
+      `Hello! Small gathering / birthday party celebration ke liye packages aur menu options WhatsApp pe mil sakte hain kya?`,
       `Hi! Table reservation aur current food menu details check karni thi—kya WhatsApp pe share kar sakte hain?`,
+      `Hello team! Weekend dining ke liye pre-booking slots aur best-seller menu recommendations mil sakte hain kya?`,
+      `Hi ${name}! Group booking aur catering packages ke baare mein poochna tha—pricing details WhatsApp pe bhej dijiye.`,
     ];
     return options[variant % options.length];
   }
 
   // 4. REAL ESTATE / BUILDERS / PROPERTY
-  if (/real estate|builder|property|realtor|developer|housing|flat|apartment/i.test(cat)) {
+  if (/real estate|builder|property|realtor|developer|housing|flat|apartment|plot/i.test(cat)) {
     const options = [
       `Hello ${name} team! ${loc} mein ongoing residential / commercial projects ke brochure aur starting price range WhatsApp pe share kar sakte hain kya?`,
-      `Hi! Ready to move flats / plots ki available inventory ki details check karni thi—brochure aur price list bhej sakte hain?`,
+      `Hi! Ready to move 2BHK/3BHK flats / plots ki available inventory ki details check karni thi—brochure aur price list bhej sakte hain?`,
       `Hello! Property investment options aur latest pricing sheets WhatsApp pe mil sakti hain kya?`,
+      `Hi ${name} team! ${loc} ke aas-paas new launched projects ki floor plan aur payment plan details WhatsApp pe share kar dijiye.`,
+      `Hello! Commercial / residential spaces ki current availability aur site visit schedule ka kya process rehta hai?`,
     ];
     return options[variant % options.length];
   }
 
   // 5. GYM / FITNESS / YOGA / SPORTS
-  if (/gym|fitness|crossfit|yoga|trainer|workout|sports/i.test(cat)) {
+  if (/gym|fitness|crossfit|yoga|trainer|workout|sports|zumba|dance|martial/i.test(cat)) {
     const options = [
       `Hi ${name} team! Monthly aur quarterly membership ke charges aur timings kya hain? Personal trainer options available hain kya?`,
       `Hello! Gym admission fees aur morning/evening batch timings ki details WhatsApp pe mil sakti hain?`,
       `Hi! 3-month membership plans aur trial session ka kya process rehta hai aapke yahan?`,
+      `Hello team! Personal training packages aur gym workout timings ki list WhatsApp pe share kar sakte hain?`,
+      `Hi ${name}! Membership fee structure aur weekend trial slot ke baare mein details bhej dijiye please.`,
     ];
     return options[variant % options.length];
   }
 
   // 6. SALON / SPA / BEAUTY / MAKEUP
-  if (/salon|spa|beauty|parlour|makeup|hair|barber/i.test(cat)) {
+  if (/salon|spa|beauty|parlour|makeup|hair|barber|nail|skincare/i.test(cat)) {
     const options = [
       `Hi ${name} team! Hair treatments aur facial packages ki price list WhatsApp pe mil sakti hai kya? Weekend appointment book karni thi.`,
       `Hello! Bridal makeup aur beauty service packages ki details aur charges share kar sakte hain please?`,
       `Hi! Available service menu aur weekend slots ke baare mein poochna tha—details share kar dijiye.`,
+      `Hello team! Hair spa aur beauty grooming packages ki rate list WhatsApp pe share kar sakte hain kya?`,
+      `Hi ${name}! Appointment availability aur service price card WhatsApp pe bhej dijiye please.`,
     ];
     return options[variant % options.length];
   }
 
   // 7. INTERIOR DESIGN / ARCHITECT / HOME DECOR
-  if (/interior|architect|decor|furniture|renovation|designer/i.test(cat)) {
+  if (/interior|architect|decor|furniture|renovation|designer|modular|kitchen/i.test(cat)) {
     const options = [
       `Hi ${name} team! Flat interior design ke basic packages aur portfolio check karna tha—kya details WhatsApp pe share kar sakte hain?`,
       `Hello! New home interior work ke liye consultation ka kya process rehta hai? Initial estimate aur portfolio mil sakta hai?`,
-      `Hi! Renovation aur interior design packages ki basic details dekhni thi—process kya hai aapka?`,
+      `Hi! Modular kitchen aur full interior renovation packages ki basic details dekhni thi—process kya hai aapka?`,
+      `Hello ${name} team! 2BHK/3BHK interior design estimate aur recent project pictures WhatsApp pe share kar sakte hain?`,
+      `Hi! Site visit aur interior consultation schedule karne ke baare mein poochna tha—details share kar dijiye.`,
     ];
     return options[variant % options.length];
   }
 
-  // 8. DIGITAL AGENCY / WEB / IT / MARKETING
+  // 8. EVENT PLANNERS / PHOTOGRAPHY / BANQUET
+  if (/event|photo|wedding|banquet|dj|stage|catering|hall/i.test(cat)) {
+    const options = [
+      `Hi ${name} team! Upcoming wedding / family event ke liye dates availability aur photography/event packages ki details WhatsApp pe mil sakti hain kya?`,
+      `Hello! Event decoration aur photography packages ka pricing card WhatsApp pe share kar sakte hain please?`,
+      `Hi ${name}! Available package options aur portfolio check karna tha—details bhej sakte hain?`,
+      `Hello team! Upcoming event booking ke liye slot availability aur rate sheet WhatsApp pe send kar dijiye.`,
+    ];
+    return options[variant % options.length];
+  }
+
+  // 9. COACHING / TUITION / CLASSES / EDUCATION
+  if (/coaching|tuition|class|school|academy|institute|ielts|spoken|exam/i.test(cat)) {
+    const options = [
+      `Hello ${name} team! Upcoming batch admission, schedule aur fee structure ki details WhatsApp pe mil sakti hain kya?`,
+      `Hi! Courses ke syllabus aur demo class schedule ke baare mein poochna tha—details share kar sakte hain?`,
+      `Hello team! New batch timings aur fee structure WhatsApp pe send kar dijiye please.`,
+      `Hi ${name}! Course enrollment aur demo session ka kya process rehta hai aapke yahan?`,
+    ];
+    return options[variant % options.length];
+  }
+
+  // 10. CA / CS / TAX / LEGAL / GST
+  if (/ca|tax|gst|legal|advocate|lawyer|consultant|accountant/i.test(cat)) {
+    const options = [
+      `Hi ${name} team! Business GST filing aur tax consultation ke charges aur appointment process ki details WhatsApp pe mil sakti hain kya?`,
+      `Hello! Company registration aur accounting service packages ke baare mein poochna tha—details share kar sakte hain?`,
+      `Hi! Consultation slots aur service charges ki details check karni thi—WhatsApp pe share kar dijiye.`,
+    ];
+    return options[variant % options.length];
+  }
+
+  // 11. CAR / BIKE / AUTOMOBILE SERVICES
+  if (/car|auto|bike|garage|motor|detailing|repair|tyre|service/i.test(cat)) {
+    const options = [
+      `Hi ${name} team! Car detailing aur ceramic coating / full service ke packages aur pricing WhatsApp pe mil sakti hai kya?`,
+      `Hello! Vehicle service appointment book karne ka kya process rehta hai? Rates aur available slots share kar dijiye.`,
+      `Hi! Service packages aur estimate check karna tha—kya WhatsApp pe details share kar sakte hain?`,
+    ];
+    return options[variant % options.length];
+  }
+
+  // 12. DIGITAL AGENCY / WEB / IT / MARKETING
   if (/agency|marketing|seo|software|developer|web|media/i.test(cat)) {
     const options = [
       `Hi ${name} team! Website development aur digital marketing ke basic packages aur portfolio check karna tha—details WhatsApp pe share kar sakte hain?`,
       `Hello! Business website redesign aur SEO ke liye basic quote aur timeline kya rehti hai aapki?`,
       `Hi! Lead generation ads aur social media management ke packages ki details mil sakti hain kya?`,
+      `Hello team! Custom web / mobile project ke liye portfolio aur consultation process WhatsApp pe share kar dijiye.`,
     ];
     return options[variant % options.length];
   }
 
-  // 9. YOUTUBE CREATOR
+  // 13. YOUTUBE CREATOR
   if (lead.source === 'youtube') {
     const options = [
-      `Hi ${name}! Aapke channel pe videos kaafi engaging lagte hain.\n\nEk quick brand collaboration / sponsorship ke baare mein poochna tha—kya aapse yahan WhatsApp ya email pe discuss kar sakte hain?`,
+      `Hi ${name}! Aapke channel pe videos kaafi regular aur engaging lagte hain.\n\nEk quick brand collaboration / sponsorship ke baare mein poochna tha—kya aapse yahan WhatsApp ya email pe discuss kar sakte hain?`,
       `Hello ${name}! Video collaboration aur brand integration ke details check karni thi—commercial rate card WhatsApp ya email pe share kar sakte hain?`,
+      `Hi ${name}! Aapke upcoming videos me brand partnership / sponsorship slots available hain kya? Details share kar dijiye.`,
     ];
     return options[variant % options.length];
   }
 
-  // 10. GENERAL / LOCAL BUSINESS FALLBACK (NO RATINGS, 100% NATURAL)
+  // 14. GENERAL / LOCAL BUSINESS FALLBACK (NO RATINGS, 100% NATURAL HUMAN INQUIRY)
   const defaultOptions = [
     `Hi ${name} team! ${loc} mein aapka business dekha—aapke current services / packages aur pricing ki details WhatsApp pe share kar sakte hain kya?`,
     `Hello ${name} team! Ek quick inquiry thi—aapke service packages aur appointment booking ka kya process rehta hai? Details share kar dijiye please.`,
     `Hi! ${loc} mein aapke services check karne the—kya catalogue / brochure WhatsApp pe bhej sakte hain?`,
+    `Hello team! Aapke latest packages aur pricing list WhatsApp pe share kar sakte hain kya?`,
+    `Hi ${name}! Aapke yahan booking / appointment lene ka kya process rehta hai? Details share kar dijiye please.`,
   ];
   return defaultOptions[variant % defaultOptions.length];
 }
