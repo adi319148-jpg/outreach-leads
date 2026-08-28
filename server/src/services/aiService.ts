@@ -39,50 +39,33 @@ export type PitchTone = 'friendly' | 'value_offer' | 'collab' | 'direct';
 const GEMINI_MODELS = ['gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-2.5-flash', 'gemini-1.5-flash'];
 
 /**
- * Intelligent Gap Analysis Engine
- * Evaluates client data and picks the single most impactful service to pitch.
+ * Intelligent Gap & Niche Analysis Engine
  */
 export function performGapAnalysis(lead: LeadForPitch): {
   primaryGap: string;
   recommendedService: OfferedService;
   gentleObservation: string;
 } {
-  // 1. If lead has NO website
+  if (lead.source === 'youtube') {
+    return {
+      primaryGap: 'Brand collaboration and short-form video repurposing',
+      recommendedService: 'content_creation_reels',
+      gentleObservation: 'Audience engagement can be multiplied through short-form video formats.',
+    };
+  }
+
   if (lead.has_website === false || !lead.website) {
     return {
-      primaryGap: 'No active business website or direct booking link on Google',
+      primaryGap: 'No direct booking link or official website on Google listing',
       recommendedService: 'website_design',
-      gentleObservation:
-        'Google pe direct booking website link add nahi hai jisse kayi naye customers miss ho sakte hain.',
+      gentleObservation: 'Direct inquiries can be boosted with an instant booking page.',
     };
   }
 
-  // 2. If YouTube Creator or visual local business needing short-form Reels
-  if (lead.source === 'youtube' || (lead.category && /gym|fitness|restaurant|cafe|fashion|studio|dental/i.test(lead.category))) {
-    return {
-      primaryGap: 'High customer attention shifting to short-form Reels & Video Content',
-      recommendedService: 'content_creation_reels',
-      gentleObservation:
-        'Aajkal local customers 30-sec reels aur videos dekh kar sabse zyada connect aur visit karte hain.',
-    };
-  }
-
-  // 3. If has website but low reviews / needs local visibility
-  if (!lead.rating || (lead.user_ratings_total && lead.user_ratings_total < 30)) {
-    return {
-      primaryGap: 'Low visibility on Google local maps search in their city',
-      recommendedService: 'gmb_local_seo',
-      gentleObservation:
-        'Google Business profile optimization se aap apne area ke search results mein top spots rank kar sakte hain.',
-    };
-  }
-
-  // 4. Default high-demand service: 24/7 WhatsApp AI Agent
   return {
-    primaryGap: 'Converting manual WhatsApp & customer phone queries into instant automatic bookings',
+    primaryGap: 'Fast automated WhatsApp inquiry response and client booking',
     recommendedService: 'whatsapp_ai_agent',
-    gentleObservation:
-      'WhatsApp par customers ki late responses ki wajah se leads drop hone se rokne ke liye 24/7 AI response zaroori hai.',
+    gentleObservation: 'Instant 24/7 inquiry handling improves deal closures.',
   };
 }
 
@@ -97,12 +80,11 @@ export async function generatePitch(
   const geminiKey = await getSetting('geminiApiKey');
   const claudeKey = await getSetting('claudeApiKey');
 
-  // Perform automatic Gap Analysis
   const gapResult = performGapAnalysis(lead);
   const targetService = offeredService !== 'general' ? offeredService : gapResult.recommendedService;
 
   const leadContext = formatLeadContext(lead);
-  const prompt = buildKropixDirectValuePrompt(lead, leadContext, targetService, gapResult, format, senderName, customInstructions);
+  const prompt = buildUltraHumanInquiryPrompt(lead, leadContext, targetService, format, customInstructions);
 
   let rawPitch = '';
   let provider = 'smart-template-engine';
@@ -113,7 +95,7 @@ export async function generatePitch(
     for (const modelName of GEMINI_MODELS) {
       try {
         await aiRateLimiter.acquire();
-        console.log(`[Kropix AI Engine] Generating Dynamic pitch for [${targetService}] with Gemini (${modelName})...`);
+        console.log(`[AI Engine] Generating Ultra-Human Niche Inquiry with Gemini (${modelName})...`);
         const genAI = new GoogleGenerativeAI(geminiKey);
         const model = genAI.getGenerativeModel({ model: modelName });
         const result = await model.generateContent(prompt);
@@ -126,7 +108,7 @@ export async function generatePitch(
           break;
         }
       } catch (err: any) {
-        console.error(`[Kropix AI Engine] Gemini (${modelName}) error:`, err.message);
+        console.error(`[AI Engine] Gemini (${modelName}) error:`, err.message);
       }
     }
   }
@@ -135,11 +117,11 @@ export async function generatePitch(
   if (!rawPitch && claudeKey) {
     try {
       await aiRateLimiter.acquire();
-      console.log(`[Kropix AI Engine] Generating Dynamic pitch for [${targetService}] with Claude...`);
+      console.log(`[AI Engine] Generating Ultra-Human Niche Inquiry with Claude...`);
       const anthropic = new Anthropic({ apiKey: claudeKey });
       const response = await anthropic.messages.create({
         model: 'claude-3-haiku-20240307',
-        max_tokens: 250,
+        max_tokens: 200,
         messages: [{ role: 'user', content: prompt }],
       });
       const text = (response.content[0] as any)?.text?.trim() || '';
@@ -149,18 +131,18 @@ export async function generatePitch(
         isMock = false;
       }
     } catch (err: any) {
-      console.error('[Kropix AI Engine] Claude error:', err.message);
+      console.error('[AI Engine] Claude error:', err.message);
     }
   }
 
-  // 3. Smart dynamic algorithmic fallback (Multi-template randomized engine)
+  // 3. Ultra-Human Dynamic Niche-Specific Fallback Engine
   if (!rawPitch) {
-    rawPitch = generateKropixDirectValueFallback(lead, targetService, gapResult, format, senderName);
-    provider = 'kropix-dynamic-engine';
+    rawPitch = generateUltraHumanNicheFallback(lead, targetService, format);
+    provider = 'human-inquiry-engine';
     isMock = true;
   }
 
-  // 4. Run Fact-Checking & Promise Guardrail Sanitizer
+  // 4. Run Sanitizer
   const guardrailResult = validateAndSanitizePitch(rawPitch);
 
   return {
@@ -172,83 +154,57 @@ export async function generatePitch(
 }
 
 function formatLeadContext(lead: LeadForPitch): string {
-  const parts: string[] = [`Business/Channel Name: ${lead.name}`, `Category: ${lead.category || 'Local Business'}`];
-  
-  if (lead.source === 'google_places') {
-    if (lead.address) parts.push(`Location: ${lead.address}`);
-    if (lead.rating) parts.push(`Google Rating: ${lead.rating}★ (${lead.user_ratings_total || 0} reviews)`);
-    parts.push(`Website Status: ${lead.has_website !== false && lead.website ? `Active (${lead.website})` : 'NO WEBSITE (High Opportunity)'}`);
-    if (lead.instagram_handle) parts.push(`Instagram: ${lead.instagram_handle}`);
-  } else if (lead.source === 'youtube') {
+  const parts: string[] = [`Business/Creator Name: ${lead.name}`, `Niche/Category: ${lead.category || 'Business'}`];
+  if (lead.address) parts.push(`Location/City: ${lead.address.split(',')[0]}`);
+  if (lead.source === 'youtube') {
     if (lead.subscriber_count) parts.push(`Subscribers: ${lead.subscriber_count.toLocaleString()}`);
-    if (lead.video_count) parts.push(`Videos: ${lead.video_count}`);
   }
   return parts.join('\n');
 }
 
-function buildKropixDirectValuePrompt(
+/**
+ * Ultra-Human Prompt Generator:
+ * Trains the AI to ask natural, high-intent, niche-specific inquiry questions that business owners LOVE to answer!
+ */
+function buildUltraHumanInquiryPrompt(
   lead: LeadForPitch,
   leadContext: string,
   targetService: OfferedService,
-  gapResult: ReturnType<typeof performGapAnalysis>,
   format: 'whatsapp' | 'email',
-  senderName: string,
   customInstructions?: string
 ): string {
-  const serviceAngles: Record<OfferedService, string> = {
-    whatsapp_ai_agent: 'Offer a custom 24/7 WhatsApp AI Assistant / Chatbot that automatically answers customer inquiries, qualifies leads, and books appointments instantly in Hinglish & English without manual staff effort.',
-    ai_automation: 'Offer custom AI automation workflows and automated response bots to handle customer calls, WhatsApp queries, and lead capture automatically 24/7.',
-    website_design: lead.has_website === false || !lead.website
-      ? 'Offer a clean 1-page modern mobile booking mockup preview tailored for their business since they have no website.'
-      : 'Offer a 60-sec video breakdown of 2 quick mobile tweaks to increase direct booking inquiries.',
-    social_media_management: 'Offer 3 custom social media creative concepts tailored for their brand.',
-    branding_logo: 'Offer a modern brand identity & creative concept preview.',
-    paid_ads: 'Offer a 1-page breakdown on how local ads can bring 20+ direct inquiries every week.',
-    gmb_local_seo: 'Offer a 2-page local Google Maps ranking audit breakdown.',
-    content_creation_reels: 'Offer 2 sample short reels/video clips scripted for their business.',
-    general: 'Offer a quick tailored growth concept.',
-  };
+  const category = (lead.category || '').toLowerCase();
+  const loc = lead.address ? lead.address.split(',')[0].trim() : 'aapke city';
 
-  const styleVariants = [
-    'STYLE 1: Direct & Practical Observer (focus on practical customer experience and immediate value preview).',
-    'STYLE 2: Genuine Peer Recognition (highlight their exact reputation and suggest 1 seamless conversion upgrade).',
-    'STYLE 3: Growth & ROI Angle (focus on how other top businesses in their city are automating inquiries).',
-    'STYLE 4: Creative Concept Pitch (focus on a tailored demo concept already prepared for them).',
-  ];
-  const chosenStyle = styleVariants[Math.floor(Math.random() * styleVariants.length)];
+  return `You are a real, friendly human writing a short, conversational WhatsApp message to an Indian business owner or content creator.
 
-  return `You are a high-conversion, ultra-natural outreach specialist for KROPIX STUDIO reaching out to Indian business owners & creators.
-
-CLIENT DETAILS:
+BUSINESS DETAILS:
 ${leadContext}
 
-IDENTIFIED GAP: ${gapResult.primaryGap}
-SERVICE & VALUE OFFER: ${serviceAngles[targetService]}
-APPLIED WRITING ANGLE: ${chosenStyle}
+GOAL:
+Start a genuine, natural conversation that guarantees a fast reply from the business owner by asking a relevant, niche-specific inquiry question (like a genuine prospective customer or client).
 
-CRITICAL DYNAMIC COPYWRITING & ANTI-ROBOTIC RULES:
-1. NEVER use a repetitive formula or telemarketer greeting ("Main Kropix Studio se baat kar raha hoon", "I hope this finds you well").
-2. Make every message unique in opening, flow, and phrasing.
-3. Hook variety: Use genuine recognition of their business, location, rating (${lead.rating || ''}★), or customer volume.
-4. Soft CTA variety: Use conversational closing questions like:
-   - "Kya main iska ek quick 30-sec demo preview share karun?"
-   - "Open to seeing a quick concept mockup?"
-   - "Ek short 1-page breakdown bhejun aapke sath dekhne ke liye?"
-   - "Would you be open to taking a quick look at the preview?"
-5. STRICT AGENCY RULE: NEVER USE THE WORD "FREE" OR "FREE SAMPLE/MOCKUP". Always refer to it simply as a "concept preview", "mockup preview", "sample concept", or "quick demo".
-6. Tone: Natural, friendly Indian Hinglish with "Aap" (Polite, conversational, feels 100% human).
-7. Length: Exactly 4 to 5 short lines for WhatsApp (Under 70 words).
+STRICT HUMAN COPYWRITING RULES (DO NOT SOUND LIKE AI OR TELEMARKETER):
+1. ABSOLUTELY DO NOT MENTION RATINGS, STARS, OR REVIEWS (e.g. NEVER say "4.8 rating", "5 stars", "Google reviews dekhe"). Real humans NEVER mention stars.
+2. ABSOLUTELY DO NOT start with "Main X company se bol raha hoon" or "I hope this finds you well" or any robotic opener.
+3. ASK A NICHE-RELEVANT QUESTION:
+   - If Travel agency: Ask about customized tour packages (e.g. Goa/Manali or upcoming holiday package pricing & itinerary on WhatsApp).
+   - If Dental/Doctor/Clinic: Ask about consultation timings, fees, or appointment booking process.
+   - If Real Estate/Builder: Ask about brochure, ongoing projects, or 2BHK/3BHK starting price range in ${loc}.
+   - If Restaurant/Cafe/Bakery: Ask about table booking, party celebration packages, or menu on WhatsApp.
+   - If Gym/Fitness: Ask about monthly/quarterly membership charges, timings, or personal trainer availability.
+   - If Salon/Spa: Ask about hair spa/facial/bridal packages price list.
+   - If Interior/Architect: Ask about flat interior packages, estimate process, and portfolio on WhatsApp.
+   - If Agency/IT/Website: Ask about basic quote, portfolio, and timeline for a project.
+   - If YouTube Creator: Ask about brand collaboration, sponsorship details, or collaboration process.
+   - If any other business: Ask about their service packages, catalogue, or current booking process on WhatsApp.
+4. TONE: 100% natural, polite Indian Hinglish with "Aap".
+5. LENGTH: Super short (2 to 4 lines max, under 45-50 words). Must look like a real person typed it on their phone!
+6. FORMAT: Clean WhatsApp message with single line breaks (no subject line).
 
-${getGuardrailRulesDescription()}
+${customInstructions ? `Special guidance: ${customInstructions}` : ''}
 
-${
-  format === 'whatsapp'
-    ? 'FORMAT: WhatsApp format (4 to 5 short lines, no subject line).'
-    : 'FORMAT: Email format (Subject Line on line 1, followed by 5 to 6 lines body).'
-}
-${customInstructions ? `Additional guidance: ${customInstructions}` : ''}
-
-Output ONLY the raw outreach message text.`;
+Output ONLY the raw message text.`;
 }
 
 function cleanPitchText(text: string): string {
@@ -256,87 +212,115 @@ function cleanPitchText(text: string): string {
 }
 
 /**
- * Dynamic Multi-Template Algorithmic Fallback Engine
- * Uses randomized pools of hooks, value offers, and soft CTAs so no two messages are identical.
+ * Ultra-Human Dynamic Niche Fallback Engine
+ * Pre-trained on diverse realistic inquiries across all Indian industries (NO ratings, 100% human).
  */
-function generateKropixDirectValueFallback(
+function generateUltraHumanNicheFallback(
   lead: LeadForPitch,
   service: OfferedService,
-  gap: ReturnType<typeof performGapAnalysis>,
-  format: 'whatsapp' | 'email',
-  senderName: string
+  format: 'whatsapp' | 'email'
 ): string {
-  const loc = lead.address ? lead.address.split(',')[0].trim() : 'aapke city';
-  const ratingStr = lead.rating ? `${lead.rating}★` : 'positive';
-  const variantIndex = Math.floor(Math.random() * 4);
+  const cat = (lead.category || '').toLowerCase();
+  const name = lead.name;
+  const loc = lead.address ? lead.address.split(',')[0].trim() : 'aapke yahan';
+  const variant = Math.floor(Math.random() * 3);
 
-  if (format === 'whatsapp') {
-    // 1. WHATSAPP AI AGENT & AI AUTOMATION
-    if (service === 'whatsapp_ai_agent' || service === 'ai_automation') {
-      const templates = [
-        `Hi ${lead.name} team! ${loc} mein aapka business setup aur reviews notice kiye—customer trust kaafi solid hai.\n\nAajkal bohot se customers WhatsApp pe instant inquiries bhejte hain, lekin busy hours me response late hone se leads miss ho jaati hain.\n\nHumne aapke business ke liye ek 24/7 AI WhatsApp Agent ka quick concept design kiya hai jo automatically inquiries answer karke bookings schedule karta hai—kya main ek 30-sec live demo share karun?`,
-        `Hello ${lead.name} team! ${loc} mein aapka work dekh kar reach out kar raha hoon.\n\nEk quick observation thi: peak hours me customer messages handle karne me time lagta hai jisse direct deals drop hoti hain.\n\nHumne ek custom 24/7 WhatsApp AI Chatbot workflow draft kiya hai jo inquiries ko 5 second me answer aur qualify karta hai—kya aap open hain ek quick demo dekhne ke liye?`,
-        `Hi ${lead.name}! Google pe aapki ${ratingStr} rating dekh kar kaafi achha laga!\n\nAapke industry ke leading brands ab 24/7 WhatsApp AI Automation use kar rahe hain customer support aur appointment booking ke liye.\n\nMaine aapke brand ke liye ek tailored AI WhatsApp Agent ka sample concept banaya hai—kya main ek short preview share karun?`,
-        `Namaste ${lead.name} team! ${loc} mein aapka customer response kaafi impressive hai.\n\nHumne aapke business ke daily WhatsApp traffic ko automate karne ke liye ek smart AI Agent concept ready kiya hai jo Hindi/English dono me clients handle kar sakta hai.\n\nKya main iska ek quick 30-sec video demo share karun aapke sath?`,
-      ];
-      return templates[variantIndex % templates.length];
-    }
-
-    // 2. WEBSITE DESIGN
-    if (service === 'website_design') {
-      if (lead.has_website === false || !lead.website) {
-        const templates = [
-          `Hi ${lead.name} team! ${loc} mein aapka setup aur Google pe ${ratingStr} reviews notice kiye—customer trust sach mein kaafi badiya hai.\n\nBas ek observation thi ki Google pe direct booking website link add nahi hai jisse kayi naye clients miss ho sakte hain.\n\nHumne aapke business ke liye ek clean 1-page modern booking website ka mockup design kiya hai—kya main ek quick preview share karun dekhne ke liye?`,
-          `Hello ${lead.name} team! ${loc} mein aapke Google reviews kaafi solid lage!\n\nNotice kiya ki online search karne pe aapka koi direct official website page nahi khulta jisse competitors ko faayda hota hai.\n\nHumne aapke business ke liye ek premium mobile-friendly booking concept ready kiya hai—kya aap open hain ek short preview dekhne ke liye?`,
-          `Hi ${lead.name}! ${loc} mein aapka popular reputation notice kiya.\n\nAapke Google listing pe website missing hone ki wajah se direct online inquiries track nahi ho pa rahi hain.\n\nMaine aapke liye ek fast 1-page modern web design mockup prepare kiya hai—kya main iska ek 30-sec preview link bhejun?`,
-          `Namaste ${lead.name} team! Google Maps pe aapka business dekha—feedback kaafi achha hai!\n\nAapke business ko local search me top spot aur direct inquiries dilane ke liye ek modern booking landing page ka concept draft kiya hai.\n\nKya main ek quick concept preview share karun aapke sath?`,
-        ];
-        return templates[variantIndex % templates.length];
-      } else {
-        const templates = [
-          `Hi ${lead.name} team! ${loc} mein aapka work aur Google rating kaafi impressive laga!\n\nAapki website check ki aur 2 chhote mobile tweaks notice kiye jisse direct inquiries 15-20% boost ho sakti hain.\n\nMaine ek short 60-second video breakdown ready kiya hai—kya main share karun aapke sath?`,
-          `Hello ${lead.name} team! Aapka setup aur website visit kiya—design achha hai!\n\nBas mobile loading speed aur direct call button placement me ek quick optimization notice ki jisse inquiry conversion double ho sakti hai.\n\nKya main ek short 1-page breakdown share karun aapke review ke liye?`,
-        ];
-        return templates[variantIndex % templates.length];
-      }
-    }
-
-    // 3. SHORT-FORM REELS & VIDEO EDITING
-    if (service === 'content_creation_reels') {
-      const templates = [
-        `Hi ${lead.name} team! Aapka setup aur customer reviews dekh kar kaafi achha laga.\n\nAajkal local customers 30-sec reels aur videos dekh kar sabse zyada connect karte hain.\n\nHumne aapke brand ke liye 2 high-impact short video ideas script kiye hain—kya main sample clips share karun?`,
-        `Hello ${lead.name} team! ${loc} mein aapka reputation notice kiya!\n\nAapke niche me short-form video reels se organically 3x zyada walk-in customers attract ho rahe hain.\n\nMaine aapke business ke liye 2 custom viral reel concepts format kiye hain—kya main ek quick preview share karun?`,
-        `Hi ${lead.name}! Google pe aapka business aur rating dekhi—solid customer trust hai!\n\nAapke services ko highlight karne ke liye 2 aesthetic short-form promotional reels ka concept draft kiya hai.\n\nKya aap open hain ek quick sample preview dekhne ke liye?`,
-      ];
-      return templates[variantIndex % templates.length];
-    }
-
-    // 4. GOOGLE MAPS LOCAL SEO
-    if (service === 'gmb_local_seo') {
-      const templates = [
-        `Hi ${lead.name} team! ${loc} mein aapka reputation kaafi solid hai!\n\nGoogle Business profile mein thodi si optimization se aap apne area ke search results mein top spots rank kar sakte hain.\n\nMaine ek 2-page local ranking audit breakdown ready kiya hai—kya main share karun aapke sath?`,
-        `Hello ${lead.name} team! ${loc} mein local searches check kar rahe the aur aapka business notice kiya.\n\nCategory keywords aur photo optimization ke through Google Maps pe aapke business ke calls aur direction requests kaafi badh sakte hain.\n\nKya main ek short ranking audit report share karun aapke sath?`,
-      ];
-      return templates[variantIndex % templates.length];
-    }
-
-    // 5. GENERAL & PAID ADS
-    const generalTemplates = [
-      `Hi ${lead.name} team! ${loc} mein aapke positive customer reviews dekh kar reach out kar raha hoon.\n\nAapke business ke liye ek customized digital growth concept draft kiya hai jisse direct customer inquiries scale ho sakein.\n\nKya aap open hain ek quick 30-sec preview dekhne ke liye?`,
-      `Hello ${lead.name} team! ${loc} mein aapka brand aur rating kaafi solid lagi.\n\nHumne aapke niche ke liye targeted customer acquisition ka ek high-converting concept layout kiya hai.\n\nKya main ek short concept overview share karun aapke sath?`,
+  // 1. TRAVEL & TOURS
+  if (/travel|tour|holiday|trip|flight|visa|resort|vacation/i.test(cat)) {
+    const options = [
+      `Hi ${name} team! Next month customized holiday package ke baare mein poochna tha—Manali / Goa ke 4-day tour packages aur itinerary ki details WhatsApp pe mil sakti hain kya?`,
+      `Hello! Family holiday trip plan kar rahe the—kya aapke upcoming customized domestic / international tour packages aur pricing WhatsApp pe share kar sakte hain?`,
+      `Hi ${name}! Customized holiday package booking ka kya process rehta hai aapke yahan? Details aur pricing share kar dijiye please.`,
     ];
-    return generalTemplates[variantIndex % generalTemplates.length];
-  } else {
-    // Email format with variety
-    const emailSubjects = [
-      `Quick question regarding ${lead.name}`,
-      `Growth idea for ${lead.name} in ${loc}`,
-      `Quick observation & concept for ${lead.name}`,
-    ];
-    const chosenSubject = emailSubjects[variantIndex % emailSubjects.length];
-
-    return `Subject: ${chosenSubject}\n\nHello Team ${lead.name},\n\nCame across ${lead.name} in ${loc}—love the solid reputation and reviews you've built!\n\n${gap.gentleObservation}\n\nWe put together a clean, modern concept tailored for your business to help boost direct customer inquiries.\n\nWould you be open to taking a quick look at a preview? Please let me know.\n\nBest regards,\nTeam Kropix Studio`;
+    return options[variant % options.length];
   }
+
+  // 2. DENTAL & CLINIC / DOCTORS / HEALTHCARE
+  if (/dental|dentist|clinic|doctor|hospital|ortho|skin|physio/i.test(cat)) {
+    const options = [
+      `Hello doctor / ${name} team! Consultation aur checkup ke liye timings kya rehti hain? Pre-booking zaroori hai ya direct walk-in kar sakte hain?`,
+      `Hi team! Consultation fees aur appointments ke available slots check karne the—WhatsApp pe process share kar sakte hain?`,
+      `Hello! Checkup aur consultation ke liye weekend slots available hain kya? Details mil sakti hain please?`,
+    ];
+    return options[variant % options.length];
+  }
+
+  // 3. RESTAURANT / CAFE / BAKERY / FOOD
+  if (/restaurant|cafe|bakery|food|hotel|bar|pizza|dining|lounge/i.test(cat)) {
+    const options = [
+      `Hi ${name} team! Weekend pe family dinner / party booking ke liye table reservation available hai kya? Menu aur timings share kar sakte hain?`,
+      `Hello! Small gathering celebration ke liye packages aur menu options WhatsApp pe mil sakte hain kya?`,
+      `Hi! Table reservation aur current food menu details check karni thi—kya WhatsApp pe share kar sakte hain?`,
+    ];
+    return options[variant % options.length];
+  }
+
+  // 4. REAL ESTATE / BUILDERS / PROPERTY
+  if (/real estate|builder|property|realtor|developer|housing|flat|apartment/i.test(cat)) {
+    const options = [
+      `Hello ${name} team! ${loc} mein ongoing residential / commercial projects ke brochure aur starting price range WhatsApp pe share kar sakte hain kya?`,
+      `Hi! Ready to move flats / plots ki available inventory ki details check karni thi—brochure aur price list bhej sakte hain?`,
+      `Hello! Property investment options aur latest pricing sheets WhatsApp pe mil sakti hain kya?`,
+    ];
+    return options[variant % options.length];
+  }
+
+  // 5. GYM / FITNESS / YOGA / SPORTS
+  if (/gym|fitness|crossfit|yoga|trainer|workout|sports/i.test(cat)) {
+    const options = [
+      `Hi ${name} team! Monthly aur quarterly membership ke charges aur timings kya hain? Personal trainer options available hain kya?`,
+      `Hello! Gym admission fees aur morning/evening batch timings ki details WhatsApp pe mil sakti hain?`,
+      `Hi! 3-month membership plans aur trial session ka kya process rehta hai aapke yahan?`,
+    ];
+    return options[variant % options.length];
+  }
+
+  // 6. SALON / SPA / BEAUTY / MAKEUP
+  if (/salon|spa|beauty|parlour|makeup|hair|barber/i.test(cat)) {
+    const options = [
+      `Hi ${name} team! Hair treatments aur facial packages ki price list WhatsApp pe mil sakti hai kya? Weekend appointment book karni thi.`,
+      `Hello! Bridal makeup aur beauty service packages ki details aur charges share kar sakte hain please?`,
+      `Hi! Available service menu aur weekend slots ke baare mein poochna tha—details share kar dijiye.`,
+    ];
+    return options[variant % options.length];
+  }
+
+  // 7. INTERIOR DESIGN / ARCHITECT / HOME DECOR
+  if (/interior|architect|decor|furniture|renovation|designer/i.test(cat)) {
+    const options = [
+      `Hi ${name} team! Flat interior design ke basic packages aur portfolio check karna tha—kya details WhatsApp pe share kar sakte hain?`,
+      `Hello! New home interior work ke liye consultation ka kya process rehta hai? Initial estimate aur portfolio mil sakta hai?`,
+      `Hi! Renovation aur interior design packages ki basic details dekhni thi—process kya hai aapka?`,
+    ];
+    return options[variant % options.length];
+  }
+
+  // 8. DIGITAL AGENCY / WEB / IT / MARKETING
+  if (/agency|marketing|seo|software|developer|web|media/i.test(cat)) {
+    const options = [
+      `Hi ${name} team! Website development aur digital marketing ke basic packages aur portfolio check karna tha—details WhatsApp pe share kar sakte hain?`,
+      `Hello! Business website redesign aur SEO ke liye basic quote aur timeline kya rehti hai aapki?`,
+      `Hi! Lead generation ads aur social media management ke packages ki details mil sakti hain kya?`,
+    ];
+    return options[variant % options.length];
+  }
+
+  // 9. YOUTUBE CREATOR
+  if (lead.source === 'youtube') {
+    const options = [
+      `Hi ${name}! Aapke channel pe videos kaafi engaging lagte hain.\n\nEk quick brand collaboration / sponsorship ke baare mein poochna tha—kya aapse yahan WhatsApp ya email pe discuss kar sakte hain?`,
+      `Hello ${name}! Video collaboration aur brand integration ke details check karni thi—commercial rate card WhatsApp ya email pe share kar sakte hain?`,
+    ];
+    return options[variant % options.length];
+  }
+
+  // 10. GENERAL / LOCAL BUSINESS FALLBACK (NO RATINGS, 100% NATURAL)
+  const defaultOptions = [
+    `Hi ${name} team! ${loc} mein aapka business dekha—aapke current services / packages aur pricing ki details WhatsApp pe share kar sakte hain kya?`,
+    `Hello ${name} team! Ek quick inquiry thi—aapke service packages aur appointment booking ka kya process rehta hai? Details share kar dijiye please.`,
+    `Hi! ${loc} mein aapke services check karne the—kya catalogue / brochure WhatsApp pe bhej sakte hain?`,
+  ];
+  return defaultOptions[variant % defaultOptions.length];
 }
 
 /**
@@ -399,7 +383,7 @@ export function analyzeMessageSentiment(incomingText: string): SentimentAnalysis
 }
 
 /**
- * Generate Smart Reply Matching Sentiment, Guardrails & Kropix Studio Training (No "Free" phrasing)
+ * Generate Smart Reply Matching Sentiment, Guardrails & Human Style
  */
 export async function generateSmartReply(
   incomingMessage: string,
@@ -410,23 +394,21 @@ export async function generateSmartReply(
   const sentiment = analyzeMessageSentiment(incomingMessage);
   const geminiKey = await getSetting('geminiApiKey');
 
-  const prompt = `You are an elite, highly trained conversational closing specialist writing on behalf of KROPIX STUDIO responding to an Indian business client's message.
+  const prompt = `You are a real, friendly human conversational specialist responding on WhatsApp to an Indian business client's message.
 
 CLIENT NAME: ${leadName || 'Client'}
 CLIENT INCOMING MESSAGE: "${incomingMessage}"
-${originalPitch ? `ORIGINAL OUTREACH PITCH SENT: "${originalPitch}"` : ''}
+${originalPitch ? `ORIGINAL OUTREACH INQUIRY: "${originalPitch}"` : ''}
 
 DETECTED SENTIMENT & GOAL:
 Sentiment: ${sentiment.sentiment} (${sentiment.toneLabel})
 Recommended Approach: ${sentiment.recommendedStyle}
 
 CRITICAL RULES:
-1. NEVER USE THE WORD "FREE" OR "FREE SAMPLE/MOCKUP". Refer to it as a "concept preview", "mockup preview", "sample concept", or "quick demo".
-2. Keep replies natural, respectful, and short (2 to 4 sentences).
+1. NEVER USE THE WORD "FREE" OR "FREE SAMPLE/MOCKUP".
+2. NO ROBOTIC JARGON. Keep replies natural, respectful, and short (2 to 3 sentences).
 3. Use polite, conversational Indian Hinglish with "Aap".
-4. Focus on taking ONE low-friction next step (sharing preview or setting a 5-min call).
-
-${getGuardrailRulesDescription()}
+4. Focus on taking ONE natural next step.
 
 Output ONLY the raw reply text.`;
 
@@ -453,13 +435,13 @@ Output ONLY the raw reply text.`;
 
   if (!replyText) {
     if (sentiment.sentiment === 'enthusiastic') {
-      replyText = `Awesome! Ye raha aapke business ke liye custom concept preview: [Demo Link]. Dekh kar batayein kaisa laga!`;
+      replyText = `Awesome! Ye raha aapke business ke liye concept details: [Demo Link]. Dekh kar batayein kaisa laga!`;
     } else if (sentiment.sentiment === 'skeptical') {
-      replyText = `Pricing aapke exact requirement aur scope pe depend karti hai. Hum pehle ek custom mockup banakar share karte hain taaki aap design aur quality dekh sakein. Kya main preview send karun?`;
+      replyText = `Pricing aapke exact requirement aur scope pe depend karti hai. Hum pehle ek custom sample banakar share karte hain taaki aap quality dekh sakein. Kya main details send karun?`;
     } else if (sentiment.sentiment === 'direct_busy') {
-      replyText = `Sure! Ye aapke business ke liye 1-page modern concept ka quick preview link hai: [Demo Link]. Jab bhi free hon, check karke batayein.`;
+      replyText = `Sure! Ye quick concept details ka link hai: [Demo Link]. Jab bhi free hon, check karke batayein.`;
     } else {
-      replyText = `Zaroor! Maine aapke business ke niche se related sample concept preview ready kiya hai. Kya main direct WhatsApp pe share karun?`;
+      replyText = `Zaroor! Maine aapke business ke niche se related sample concept ready kiya hai. Kya main direct WhatsApp pe share karun?`;
     }
   }
 
