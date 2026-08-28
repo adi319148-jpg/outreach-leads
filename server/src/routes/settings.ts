@@ -35,7 +35,7 @@ router.get('/', async (req: Request, res: Response) => {
   try {
     const settings = await getAllSettings();
     const detectedSecret = getDetectedClientSecret();
-    const waStatus = getWhatsAppStatus();
+    const waStatus = await getWhatsAppStatus();
 
     // Mask API keys for safe display in UI
     const maskedSettings = {

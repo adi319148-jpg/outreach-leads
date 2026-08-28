@@ -16,6 +16,7 @@ import { AppSettings, PitchTone, WhatsAppStatusState, WhatsAppAccountState } fro
 import {
   KeyRound,
   ShieldCheck,
+  ShieldAlert,
   CheckCircle2,
   XCircle,
   Sparkles,
@@ -398,13 +399,61 @@ export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved }) => {
         )}
 
         {waState?.status === 'connected' && (
-          <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300 flex items-center gap-3">
-            <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
-            <div>
-              <p className="font-bold text-emerald-200">WhatsApp is Linked and Ready!</p>
-              <p className="text-[11px] text-emerald-400/90 mt-0.5">
-                Active account: <strong>+{waState.userPhone}</strong> ({waState.userName || 'Linked Device'}). You can now launch automated batch campaigns from the Bulk Campaign tab.
-              </p>
+          <div className="space-y-3">
+            <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300 flex items-center gap-3">
+              <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
+              <div className="flex-1">
+                <p className="font-bold text-emerald-200">WhatsApp is Linked and Active!</p>
+                <p className="text-[11px] text-emerald-400/90 mt-0.5">
+                  Active account: <strong>+{waState.userPhone}</strong> ({waState.userName || 'Linked Device'}).
+                </p>
+              </div>
+            </div>
+
+            {/* Daily Safety Counter Bar */}
+            <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 font-semibold text-slate-200">
+                  <ShieldAlert className="h-4 w-4 text-emerald-400" />
+                  <span>Daily Anti-Ban Safety Limit</span>
+                </div>
+                <span className={`font-mono font-bold ${(waState.sentToday || 0) >= 40 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                  {waState.sentToday || 0} / 40 Messages Sent Today
+                </span>
+              </div>
+
+              {/* Progress Bar */}
+              <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${
+                    (waState.sentToday || 0) >= 40
+                      ? 'bg-rose-500'
+                      : (waState.sentToday || 0) >= 30
+                      ? 'bg-amber-500'
+                      : 'bg-emerald-500'
+                  }`}
+                  style={{ width: `${Math.min(100, (((waState.sentToday || 0) / 40) * 100))}%` }}
+                />
+              </div>
+
+              {(waState.sentToday || 0) >= 40 ? (
+                <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 text-[11px] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <span>
+                    <strong>🛡️ 40 Messages Limit Reached for this Account:</strong> To protect your phone from bans, click below to disconnect and link another WhatsApp number.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleConnectWhatsApp(true)}
+                    className="px-3 py-1 rounded-md bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shrink-0 shadow"
+                  >
+                    Link New Account ➔
+                  </button>
+                </div>
+              ) : (
+                <p className="text-[11px] text-slate-400">
+                  System strictly caps automated sending at 40 messages/day per number to protect against Meta bans and restrictions.
+                </p>
+              )}
             </div>
           </div>
         )}

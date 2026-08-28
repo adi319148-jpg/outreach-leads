@@ -17,7 +17,7 @@ const router = Router();
 // 1. Get all WhatsApp accounts and statuses
 router.get('/accounts', async (_req: Request, res: Response) => {
   try {
-    const accounts = getAllWhatsAppAccounts();
+    const accounts = await getAllWhatsAppAccounts();
     return res.json(accounts);
   } catch (error: any) {
     console.error('WhatsApp accounts error:', error);
@@ -29,7 +29,7 @@ router.get('/accounts', async (_req: Request, res: Response) => {
 router.get('/status', async (req: Request, res: Response) => {
   try {
     const sessionId = (req.query.sessionId as string) || 'account_1';
-    const status = getWhatsAppStatus(sessionId);
+    const status = await getWhatsAppStatus(sessionId);
     return res.json(status);
   } catch (error: any) {
     console.error('WhatsApp status error:', error);

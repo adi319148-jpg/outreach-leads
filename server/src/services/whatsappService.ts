@@ -22,6 +22,9 @@ export interface WhatsAppAccountState {
   errorMessage: string | null;
   lastActive: string | null;
   killSwitchActive?: boolean;
+  sentToday?: number;
+  dailyLimit?: number;
+  limitReached?: boolean;
 }
 
 export interface BatchWhatsAppProgress {
@@ -104,19 +107,41 @@ function getOrCreateSessionRecord(sessionId: string, accountName?: string): Sess
   return newRecord;
 }
 
-// Auto-seed default session
-getOrCreateSessionRecord('account_1', 'Primary WhatsApp');
+// Daily safety limit per WhatsApp number to prevent ban/restriction
+export const DAILY_SAFETY_LIMIT = 40;
 
-export function getAllWhatsAppAccounts(): WhatsAppAccountState[] {
+export async function getDailyWhatsAppSentCount(): Promise<number> {
+  try {
+    const row = await get<{ count: number }>(
+      "SELECT COUNT(*) as count FROM activity_logs WHERE action = 'whatsapp_sent' AND DATE(created_at) = DATE('now')"
+    );
+    return row?.count || 0;
+  } catch (e) {
+    return 0;
+  }
+}
+
+export async function getAllWhatsAppAccounts(): Promise<WhatsAppAccountState[]> {
+  const sentToday = await getDailyWhatsAppSentCount();
   return Array.from(sessions.values()).map((s) => ({
     ...s.state,
     killSwitchActive: isEmergencyKillSwitchActive,
+    sentToday,
+    dailyLimit: DAILY_SAFETY_LIMIT,
+    limitReached: sentToday >= DAILY_SAFETY_LIMIT,
   }));
 }
 
-export function getWhatsAppStatus(sessionId: string = 'account_1'): WhatsAppAccountState {
+export async function getWhatsAppStatus(sessionId: string = 'account_1'): Promise<WhatsAppAccountState> {
   const record = getOrCreateSessionRecord(sessionId);
-  return { ...record.state, killSwitchActive: isEmergencyKillSwitchActive };
+  const sentToday = await getDailyWhatsAppSentCount();
+  return {
+    ...record.state,
+    killSwitchActive: isEmergencyKillSwitchActive,
+    sentToday,
+    dailyLimit: DAILY_SAFETY_LIMIT,
+    limitReached: sentToday >= DAILY_SAFETY_LIMIT,
+  };
 }
 
 export function getBatchWhatsAppStatus(): BatchWhatsAppProgress {
@@ -404,11 +429,19 @@ export async function sendDirectWhatsApp(
     };
   }
 
+  const sentToday = await getDailyWhatsAppSentCount();
+  if (sentToday >= DAILY_SAFETY_LIMIT) {
+    return {
+      success: false,
+      message: `🛡️ Anti-Ban Safety Limit Reached (${sentToday}/${DAILY_SAFETY_LIMIT} messages sent today)! To protect your number from WhatsApp bans, please link a new WhatsApp account in Settings or use 1-Click WhatsApp ↗.`,
+    };
+  }
+
   const connected = getConnectedSessions();
   if (connected.length === 0) {
     return {
       success: false,
-      message: 'No WhatsApp accounts are currently connected. Please pair at least one account in Settings.',
+      message: 'No WhatsApp accounts are currently connected. Please pair your account in Settings.',
     };
   }
 
@@ -469,6 +502,14 @@ export async function startAntiBanBatchWhatsApp(
     };
   }
 
+  const currentSentToday = await getDailyWhatsAppSentCount();
+  if (currentSentToday >= DAILY_SAFETY_LIMIT) {
+    return {
+      success: false,
+      message: `🛡️ Anti-Ban Safety Limit Reached (${currentSentToday}/${DAILY_SAFETY_LIMIT} messages sent today on this WhatsApp)! To keep your number safe, please link a new WhatsApp account in Settings or use 1-Click WhatsApp ↗.`,
+    };
+  }
+
   let connected = getConnectedSessions();
   if (allowedSessionIds && allowedSessionIds.length > 0) {
     connected = connected.filter((s) => allowedSessionIds.includes(s.id));
@@ -477,7 +518,7 @@ export async function startAntiBanBatchWhatsApp(
   if (connected.length === 0) {
     return {
       success: false,
-      message: 'No active connected WhatsApp accounts available for this batch. Pair accounts in Settings.',
+      message: 'No active connected WhatsApp accounts available for this batch. Pair your account in Settings.',
     };
   }
 
@@ -525,18 +566,24 @@ export async function startAntiBanBatchWhatsApp(
     currentPhone: null,
     secondsRemaining: 0,
     activeAccountsCount: accountsCount,
-    statusMessage: `Starting Multi-WhatsApp Campaign for ${eligibleLeads.length} leads across ${accountsCount} linked WhatsApp accounts! 🚀`,
+    statusMessage: `Starting WhatsApp Campaign for ${eligibleLeads.length} leads (Anti-Ban 40/Day Cap Active) 🚀`,
     logs: [],
   };
 
   (async () => {
-    console.log(`[Baileys Multi-Batch] Starting campaign for ${eligibleLeads.length} leads across ${accountsCount} account(s)...`);
+    console.log(`[Baileys Batch] Starting campaign for ${eligibleLeads.length} leads...`);
 
     for (let i = 0; i < eligibleLeads.length; i++) {
       if (cancelBatchRequested || isEmergencyKillSwitchActive) {
         batchProgress.statusMessage = isEmergencyKillSwitchActive
           ? '🚨 Campaign halted by Emergency Kill Switch.'
           : 'Campaign stopped by user.';
+        break;
+      }
+
+      const loopSentToday = await getDailyWhatsAppSentCount();
+      if (loopSentToday >= DAILY_SAFETY_LIMIT) {
+        batchProgress.statusMessage = `🛡️ Anti-Ban Safety Limit Reached (${DAILY_SAFETY_LIMIT}/${DAILY_SAFETY_LIMIT})! Campaign stopped to keep this WhatsApp number safe. Link a new account in Settings to continue.`;
         break;
       }
 

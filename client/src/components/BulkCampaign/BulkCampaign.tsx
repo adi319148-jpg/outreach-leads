@@ -44,6 +44,7 @@ import {
   MessageCircle,
   Clock,
   ShieldCheck,
+  ShieldAlert,
   Square,
   AlertTriangle,
   X,
@@ -596,9 +597,17 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
               </span>
 
               {isWaConnected && (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                  <MessageCircle className="h-3.5 w-3.5 text-emerald-400" />
-                  <span>WhatsApp Linked (+{waState?.userPhone || 'Active'})</span>
+                <span
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${
+                    (waState?.sentToday || 0) >= 40
+                      ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                      : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                  }`}
+                >
+                  <ShieldAlert className="h-3.5 w-3.5" />
+                  <span>
+                    🛡️ Safety Cap: {waState?.sentToday || 0} / 40 Sent Today
+                  </span>
                 </span>
               )}
             </div>
@@ -651,17 +660,32 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
 
                 <button
                   onClick={handleStartWhatsAppAntiBanBatch}
-                  disabled={batchStarting || batchProgress?.isRunning || !isWaConnected || selectedIds.length === 0}
+                  disabled={
+                    batchStarting ||
+                    batchProgress?.isRunning ||
+                    !isWaConnected ||
+                    (waState?.sentToday || 0) >= 40 ||
+                    selectedIds.length === 0
+                  }
                   className={`flex items-center gap-2 px-5 py-2 rounded-xl text-white text-xs font-bold shadow-lg transition-all ${
-                    isWaConnected && selectedIds.length > 0
+                    (waState?.sentToday || 0) >= 40
+                      ? 'bg-slate-800 text-rose-300 border border-rose-500/40 cursor-not-allowed opacity-90'
+                      : isWaConnected && selectedIds.length > 0
                       ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-emerald-600/30'
                       : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed opacity-60'
                   }`}
+                  title={
+                    (waState?.sentToday || 0) >= 40
+                      ? '40/40 daily safety limit reached on this number to prevent bans. Please link a new WhatsApp account in Settings.'
+                      : undefined
+                  }
                 >
                   <MessageCircle className="h-4 w-4" />
                   <span>
                     {batchProgress?.isRunning
                       ? 'Campaign Running...'
+                      : (waState?.sentToday || 0) >= 40
+                      ? '⚠️ 40/40 Limit Reached (Switch Account)'
                       : isWaConnected
                       ? `🚀 Launch WhatsApp (${selectedIds.length})`
                       : 'Link WhatsApp in Settings'}
@@ -671,6 +695,18 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
             )}
           </div>
         </div>
+
+        {/* 40 Messages Daily Safety Limit Alert */}
+        {(waState?.sentToday || 0) >= 40 && (
+          <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
+            <div className="flex items-center gap-2">
+              <ShieldAlert className="h-5 w-5 text-rose-400 shrink-0" />
+              <span>
+                <strong>🛡️ Anti-Ban Safety Limit Reached (40/40 Messages Sent Today):</strong> Auto-sending is paused on this WhatsApp number to protect it from restrictions. Link a new WhatsApp number in Settings or use 1-Click WhatsApp ↗.
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Quick Stats Bar */}
         {leads.length > 0 && (

@@ -152,6 +152,9 @@ export interface WhatsAppAccountState {
   errorMessage: string | null;
   lastActive: string | null;
   killSwitchActive?: boolean;
+  sentToday?: number;
+  dailyLimit?: number;
+  limitReached?: boolean;
 }
 
 export interface WhatsAppStatusState {
@@ -164,6 +167,9 @@ export interface WhatsAppStatusState {
   errorMessage: string | null;
   lastActive: string | null;
   killSwitchActive?: boolean;
+  sentToday?: number;
+  dailyLimit?: number;
+  limitReached?: boolean;
 }
 
 export interface BatchWhatsAppProgress {
