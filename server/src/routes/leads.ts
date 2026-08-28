@@ -253,6 +253,9 @@ router.put('/:id', async (req: Request, res: Response) => {
       if (!status || status === 'not_contacted') {
         updates.push("status = 'contacted'");
       }
+      if (in_campaign_queue === undefined) {
+        updates.push('in_campaign_queue = 0');
+      }
     }
 
     params.push(id);

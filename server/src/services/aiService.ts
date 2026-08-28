@@ -5,6 +5,8 @@ import { aiRateLimiter } from '../utils/rateLimiter';
 import { validateAndSanitizePitch, getGuardrailRulesDescription } from './guardrailService';
 
 export type OfferedService =
+  | 'whatsapp_ai_agent'
+  | 'ai_automation'
   | 'website_design'
   | 'social_media_management'
   | 'branding_logo'
@@ -194,6 +196,8 @@ function buildKropixDirectValuePrompt(
   customInstructions?: string
 ): string {
   const serviceAngles: Record<OfferedService, string> = {
+    whatsapp_ai_agent: 'Offer a custom 24/7 WhatsApp AI Assistant / Chatbot that automatically answers customer inquiries, qualifies leads, and books appointments instantly in Hinglish & English without manual staff effort.',
+    ai_automation: 'Offer custom AI automation workflows and automated response bots to handle customer calls, WhatsApp queries, and lead capture automatically 24/7.',
     website_design: lead.has_website === false || !lead.website
       ? 'Offer a clean 1-page modern mobile booking mockup preview tailored for their business since they have no website.'
       : 'Offer a 60-sec video breakdown of 2 quick mobile tweaks to increase direct booking inquiries.',
@@ -251,6 +255,10 @@ function generateKropixDirectValueFallback(
   const loc = lead.address ? lead.address.split(',')[0].trim() : 'aapke area';
 
   if (format === 'whatsapp') {
+    if (service === 'whatsapp_ai_agent' || service === 'ai_automation') {
+      return `Hi ${lead.name} team! ${loc} mein aapka setup aur reviews notice kiye—kaafi solid feedback hai.\n\nAajkal bohot se customers WhatsApp pe instant inquiries bhejte hain, lekin busy hours me response late hone se leads miss ho jaati hain.\n\nHumne aapke business ke liye ek 24/7 AI WhatsApp Agent ka quick concept banaya hai jo inquiries answer karke direct appointments book karta hai—kya main ek 30-sec live demo share karun dekhne ke liye?`;
+    }
+
     if (service === 'website_design') {
       if (lead.has_website === false || !lead.website) {
         return `Hi ${lead.name} team! ${loc} mein aapka setup aur Google pe ${lead.rating ? `${lead.rating}★` : 'positive'} reviews notice kiye—customer trust sach mein kaafi badiya hai.\n\nBas ek observation thi ki Google pe direct booking website link add nahi hai jisse kayi naye clients miss ho sakte hain.\n\nHumne aapke business ke liye ek clean 1-page modern booking website ka mockup design kiya hai—kya main ek quick preview share karun dekhne ke liye?`;

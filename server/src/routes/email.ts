@@ -17,7 +17,7 @@ router.post('/send', async (req: Request, res: Response) => {
 
     if (result.success && leadId) {
       await run(
-        "UPDATE leads SET status = 'contacted', last_contacted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        "UPDATE leads SET status = 'contacted', in_campaign_queue = 0, last_contacted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
         [leadId]
       );
     }
@@ -53,7 +53,7 @@ router.post('/batch-send', async (req: Request, res: Response) => {
 
         if (sendResult.success && lead.id) {
           await run(
-            "UPDATE leads SET status = 'contacted', last_contacted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            "UPDATE leads SET status = 'contacted', in_campaign_queue = 0, last_contacted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
             [lead.id]
           );
         }

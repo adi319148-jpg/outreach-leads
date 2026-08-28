@@ -30,9 +30,11 @@ client_secret*.json
 *.pem
 *.key
 
-# Logs
+# Logs & Tunnel outputs
 logs/
 *.log
+tunnel.log
+live-link.txt
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

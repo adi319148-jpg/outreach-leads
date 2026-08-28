@@ -4,6 +4,8 @@ export type PitchStatus = 'draft' | 'ready' | 'sent';
 export type PitchTone = 'friendly' | 'professional' | 'direct' | 'creative' | 'bold';
 
 export type OfferedService =
+  | 'whatsapp_ai_agent'
+  | 'ai_automation'
   | 'website_design'
   | 'video_editing'
   | 'graphic_design'
@@ -13,7 +15,7 @@ export type OfferedService =
   | 'gmb_local_seo'
   | 'social_media_management'
   | 'local_seo'
-  | 'ai_automation';
+  | 'general';
 
 export interface Lead {
   id: number;

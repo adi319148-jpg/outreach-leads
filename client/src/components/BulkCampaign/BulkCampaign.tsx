@@ -60,7 +60,7 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
   const [leads, setLeads] = useState<Lead[]>([]);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedService, setSelectedService] = useState<OfferedService>('website_design');
+  const [selectedService, setSelectedService] = useState<OfferedService>('whatsapp_ai_agent');
   const [selectedTone, setSelectedTone] = useState<PitchTone>('friendly');
   const [customGuidance, setCustomGuidance] = useState('');
   const [generatingBatch, setGeneratingBatch] = useState(false);
@@ -237,10 +237,11 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
       });
 
       if (res.success) {
-        setActionSuccessMsg(`✅ Message sent automatically to ${activeEditingLead.name} (${activeEditingLead.phone})!`);
-        setLeads((prev) =>
-          prev.map((l) => (l.id === activeEditingLead.id ? { ...l, status: 'contacted' } : l))
-        );
+        const sentLeadId = activeEditingLead.id;
+        setActionSuccessMsg(`✅ Message sent to ${activeEditingLead.name} & removed from Bulk Queue! 🚀`);
+        setLeads((prev) => prev.filter((l) => l.id !== sentLeadId));
+        setSelectedIds((prev) => prev.filter((i) => i !== sentLeadId));
+        setActiveEditingLead(null);
         onCampaignUpdated();
         confetti({ particleCount: 80, spread: 60, origin: { y: 0.7 } });
         setTimeout(() => setActionSuccessMsg(null), 4000);
@@ -371,10 +372,11 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
       });
 
       if (res.success) {
-        setActionSuccessMsg(`✅ Email dispatched automatically in background to ${activeEditingLead.name}!`);
-        setLeads((prev) =>
-          prev.map((l) => (l.id === activeEditingLead.id ? { ...l, status: 'contacted' } : l))
-        );
+        const sentLeadId = activeEditingLead.id;
+        setActionSuccessMsg(`✅ Email dispatched to ${activeEditingLead.name} & removed from Bulk Queue! 🚀`);
+        setLeads((prev) => prev.filter((l) => l.id !== sentLeadId));
+        setSelectedIds((prev) => prev.filter((i) => i !== sentLeadId));
+        setActiveEditingLead(null);
         onCampaignUpdated();
         confetti({ particleCount: 80, spread: 60, origin: { y: 0.7 } });
         setTimeout(() => setActionSuccessMsg(null), 4000);
@@ -412,7 +414,13 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
     try {
       const res = await sendBatchEmailMessages(validLeads);
       if (res.success) {
-        setActionSuccessMsg(`🚀 Automated batch emails dispatched for ${validLeads.length} leads in background!`);
+        const sentIds = validLeads.map((v) => v.id);
+        setActionSuccessMsg(`🚀 Batch emails dispatched for ${validLeads.length} leads & removed from Queue!`);
+        setLeads((prev) => prev.filter((l) => !sentIds.includes(l.id)));
+        setSelectedIds((prev) => prev.filter((i) => !sentIds.includes(i)));
+        if (activeEditingLead && sentIds.includes(activeEditingLead.id)) {
+          setActiveEditingLead(null);
+        }
         confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
         setTimeout(() => setActionSuccessMsg(null), 4500);
         onCampaignUpdated();
@@ -428,11 +436,32 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
     }
   };
 
+  const handleCleanContactedLeads = async () => {
+    const contacted = leads.filter((l) => l.status !== 'not_contacted');
+    if (contacted.length === 0) {
+      setActionSuccessMsg('✨ All leads in queue are already new/uncontacted!');
+      setTimeout(() => setActionSuccessMsg(null), 3000);
+      return;
+    }
+    const ids = contacted.map((l) => l.id);
+    await removeFromCampaignQueue(ids);
+    setLeads((prev) => prev.filter((l) => l.status === 'not_contacted'));
+    setSelectedIds((prev) => prev.filter((i) => !ids.includes(i)));
+    if (activeEditingLead && ids.includes(activeEditingLead.id)) {
+      setActiveEditingLead(null);
+    }
+    setActionSuccessMsg(`🧹 Cleaned ${ids.length} contacted leads from queue!`);
+    setTimeout(() => setActionSuccessMsg(null), 3000);
+    onCampaignUpdated();
+  };
+
   const handleCopyPitch = (lead: Lead) => {
     navigator.clipboard.writeText(lead.pitch || '');
-    updateLead(lead.id, { status: 'contacted', markContacted: true });
-    setLeads((prev) => prev.map((l) => (l.id === lead.id ? { ...l, status: 'contacted' } : l)));
-    setActionSuccessMsg(`Copied message for ${lead.name}!`);
+    updateLead(lead.id, { status: 'contacted', markContacted: true, in_campaign_queue: false });
+    setLeads((prev) => prev.filter((l) => l.id !== lead.id));
+    setSelectedIds((prev) => prev.filter((i) => i !== lead.id));
+    if (activeEditingLead?.id === lead.id) setActiveEditingLead(null);
+    setActionSuccessMsg(`Copied message for ${lead.name} & removed from Queue! 🚀`);
     setTimeout(() => setActionSuccessMsg(null), 2500);
     onCampaignUpdated();
   };
@@ -528,6 +557,16 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
           <div className="flex flex-wrap items-center gap-2">
             {leads.length > 0 && (
               <>
+                {contactedCount > 0 && (
+                  <button
+                    onClick={handleCleanContactedLeads}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-xs font-semibold border border-amber-500/30 transition-colors shadow"
+                    title="Remove already messaged/contacted prospects from this queue"
+                  >
+                    <span>🧹 Clean Sent ({contactedCount})</span>
+                  </button>
+                )}
+
                 <button
                   onClick={handleClearAll}
                   className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 text-xs font-medium border border-slate-700 transition-colors"
@@ -721,8 +760,10 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
             <select
               value={selectedService}
               onChange={(e) => setSelectedService(e.target.value as OfferedService)}
-              className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 text-xs focus:border-sky-500"
+              className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 text-xs focus:border-sky-500 font-medium"
             >
+              <option value="whatsapp_ai_agent">🤖 WhatsApp AI Agent & 24/7 Bot</option>
+              <option value="ai_automation">⚡ AI Automation & Customer Assistant</option>
               <option value="website_design">🌐 Web Design / Redesign</option>
               <option value="content_creation_reels">🎬 Short Reels / Video Promo</option>
               <option value="gmb_local_seo">📈 Google Maps Local SEO</option>
@@ -808,10 +849,24 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
                           </td>
 
                           <td className="py-3 px-4">
-                            <div className="font-bold text-slate-100 flex items-center gap-1.5">
+                            <div className="font-bold text-slate-100 flex items-center gap-1.5 flex-wrap">
                               <span>{lead.name}</span>
                               {lead.rating && (
                                 <span className="text-[10px] text-amber-400 font-semibold">★ {lead.rating}</span>
+                              )}
+                              {lead.status === 'not_contacted' ? (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                  NEW
+                                </span>
+                              ) : lead.status === 'contacted' ? (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                  ✓ Sent
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                                  💬 {lead.status}
+                                </span>
                               )}
                             </div>
                             <div className="text-[11px] text-slate-400 truncate max-w-[200px]">
