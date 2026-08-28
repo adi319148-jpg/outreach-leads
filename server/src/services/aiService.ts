@@ -40,6 +40,9 @@ export type PitchTone = 'friendly' | 'value_offer' | 'collab' | 'direct';
 
 const GEMINI_MODELS = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-2.0-flash-exp'];
 
+let lastGeminiFailTime = 0;
+let lastClaudeFailTime = 0;
+
 function safeReplaceAll(source: string, target: string, replacement: string): string {
   if (!source || !target) return source || '';
   return source.split(target).join(replacement);
@@ -178,11 +181,10 @@ export async function generatePitch(
   let isMock = true;
 
   // 1. Try Gemini with token optimization (maxOutputTokens: 120)
-  if (geminiKey) {
+  if (geminiKey && Date.now() - lastGeminiFailTime > 5 * 60 * 1000) {
     for (const modelName of GEMINI_MODELS) {
       try {
         await aiRateLimiter.acquire();
-        console.log(`[AI Engine] Generating ${isIntl ? 'English (Intl)' : 'Hinglish'} Question + Pitch for [${targetService}] with Gemini (${modelName})...`);
         const genAI = new GoogleGenerativeAI(geminiKey);
         const model = genAI.getGenerativeModel({
           model: modelName,
@@ -206,8 +208,10 @@ export async function generatePitch(
           err.message?.includes('API_KEY_INVALID') ||
           err.message?.includes('404') ||
           err.message?.includes('API key') ||
-          err.message?.includes('not found')
+          err.message?.includes('not found') ||
+          err.message?.includes('400')
         ) {
+          lastGeminiFailTime = Date.now();
           break; // Fast failover to instant hybrid engine
         }
       }
@@ -215,10 +219,9 @@ export async function generatePitch(
   }
 
   // 2. Try Claude with token optimization
-  if (!rawPitch && claudeKey) {
+  if (!rawPitch && claudeKey && Date.now() - lastClaudeFailTime > 5 * 60 * 1000) {
     try {
       await aiRateLimiter.acquire();
-      console.log(`[AI Engine] Generating ${isIntl ? 'English (Intl)' : 'Hinglish'} Question + Pitch with Claude...`);
       const anthropic = new Anthropic({ apiKey: claudeKey });
       const response = await anthropic.messages.create({
         model: 'claude-3-haiku-20240307',
@@ -233,6 +236,7 @@ export async function generatePitch(
       }
     } catch (err: any) {
       console.error('[AI Engine] Claude error:', err.message);
+      lastClaudeFailTime = Date.now();
     }
   }
 

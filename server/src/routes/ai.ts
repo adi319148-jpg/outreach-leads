@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { generatePitch, PitchTone, OfferedService } from '../services/aiService';
-import { run, get } from '../db/database';
+import { run, get, all } from '../db/database';
 
 const router = Router();
 
@@ -52,23 +52,37 @@ router.post('/batch-generate', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'leadIds array is required.' });
     }
 
-    const results = [];
-    for (const id of leadIds) {
-      const lead = await get('SELECT * FROM leads WHERE id = ?', [id]);
-      if (lead) {
-        const genResult = await generatePitch(
-          lead,
-          tone as PitchTone,
-          offeredService as OfferedService,
-          customInstructions
-        );
-        await run(
-          'UPDATE leads SET pitch = ?, pitch_status = ?, offered_service = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-          [genResult.pitch, 'ready', offeredService, id]
-        );
-        results.push({ id, pitch: genResult.pitch, success: true });
-      }
+    // 1. Fetch all requested leads in 1 single database query
+    const placeholders = leadIds.map(() => '?').join(',');
+    const leads = await all<any>(`SELECT * FROM leads WHERE id IN (${placeholders})`, leadIds);
+
+    if (!leads || leads.length === 0) {
+      return res.json({ success: true, count: 0, results: [] });
     }
+
+    // 2. Process concurrently in parallel (Lightning Fast!)
+    const results = await Promise.all(
+      leads.map(async (lead) => {
+        try {
+          const genResult = await generatePitch(
+            lead,
+            tone as PitchTone,
+            offeredService as OfferedService,
+            customInstructions
+          );
+
+          await run(
+            'UPDATE leads SET pitch = ?, pitch_status = ?, offered_service = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+            [genResult.pitch, 'ready', offeredService, lead.id]
+          );
+
+          return { id: lead.id, pitch: genResult.pitch, success: true };
+        } catch (err: any) {
+          console.error(`Error drafting pitch for lead #${lead.id}:`, err.message);
+          return { id: lead.id, pitch: '', success: false, error: err.message };
+        }
+      })
+    );
 
     return res.json({ success: true, count: results.length, results });
   } catch (error: any) {

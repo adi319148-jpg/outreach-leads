@@ -23,6 +23,6 @@ export class RateLimiter {
   }
 }
 
-export const placesRateLimiter = new RateLimiter(20, 60000); // 20 req/min
-export const youtubeRateLimiter = new RateLimiter(30, 60000); // 30 req/min
-export const aiRateLimiter = new RateLimiter(15, 60000); // 15 req/min
+export const placesRateLimiter = new RateLimiter(60, 60000); // 60 req/min
+export const youtubeRateLimiter = new RateLimiter(60, 60000); // 60 req/min
+export const aiRateLimiter = new RateLimiter(200, 60000); // 200 req/min (instant high concurrency)
