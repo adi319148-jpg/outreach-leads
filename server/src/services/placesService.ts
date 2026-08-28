@@ -26,65 +26,77 @@ export async function searchPlaces(
 ): Promise<{ leads: PlaceLeadResult[]; isMock: boolean; message?: string }> {
   const apiKey = await getSetting('googlePlacesApiKey');
 
+  // Split multiple comma-separated niches (e.g. "Travel Agencies, Dental Clinics, Real Estate")
+  const categories = category
+    .split(',')
+    .map((c) => c.trim())
+    .filter(Boolean);
+
+  const activeCategories = categories.length > 0 ? categories : ['Business'];
+
   if (!apiKey) {
-    console.log('[PlacesService] No API key configured. Generating comprehensive simulation leads...');
-    const mockLeads = generateMaxMockPlaces(category, location);
-    const filtered = filterPlacesByWebsite(mockLeads, websiteFilter);
+    console.log('[PlacesService] No API key configured. Generating multi-niche simulation leads...');
+    let allMockLeads: PlaceLeadResult[] = [];
+    for (const cat of activeCategories) {
+      const mockLeads = generateMaxMockPlaces(cat, location);
+      allMockLeads = allMockLeads.concat(mockLeads);
+    }
+    const filtered = filterPlacesByWebsite(allMockLeads, websiteFilter);
     return {
       leads: filtered,
       isMock: true,
-      message: `Simulated Search Mode: Extracted ${filtered.length} local leads for "${category}" in ${location}. Add Google Places Key in Settings for live data.`,
+      message: `Simulated Search Mode: Extracted ${filtered.length} leads across ${activeCategories.length} niches in ${location}. Add Google Places Key in Settings for live data.`,
     };
   }
 
   await placesRateLimiter.acquire();
 
   try {
-    // Multi-query expansion to maximize extraction (up to 60-100+ leads)
-    const subQueries = [
-      `${category} in ${location}`,
-      `best ${category} in ${location}`,
-      `top ${category} in ${location}`,
-      `${category} near ${location}`,
-    ];
-
-    console.log(`[PlacesService] Running multi-query Places expansion for max extraction in ${location}...`);
+    console.log(`[PlacesService] Running Multi-Niche Places extraction for [${activeCategories.join(', ')}] in ${location}...`);
 
     const allPlacesMap = new Map<string, any>();
 
-    for (const query of subQueries) {
-      try {
-        const response = await axios.post(
-          'https://places.googleapis.com/v1/places:searchText',
-          {
-            textQuery: query,
-            maxResultCount: 20,
-          },
-          {
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Goog-Api-Key': apiKey,
-              'X-Goog-FieldMask':
-                'places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.internationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.primaryType,places.types,places.editorialSummary,places.googleMapsUri',
-            },
-            timeout: 12000,
-          }
-        );
+    for (const cat of activeCategories) {
+      const subQueries = [
+        `${cat} in ${location}`,
+        `best ${cat} in ${location}`,
+        `top ${cat} in ${location}`,
+      ];
 
-        const places = response.data.places || [];
-        for (const p of places) {
-          const id = p.id || (p.displayName?.text + p.formattedAddress);
-          if (id && !allPlacesMap.has(id)) {
-            allPlacesMap.set(id, p);
+      for (const query of subQueries) {
+        try {
+          const response = await axios.post(
+            'https://places.googleapis.com/v1/places:searchText',
+            {
+              textQuery: query,
+              maxResultCount: 20,
+            },
+            {
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Goog-Api-Key': apiKey,
+                'X-Goog-FieldMask':
+                  'places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.internationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.primaryType,places.types,places.editorialSummary,places.googleMapsUri',
+              },
+              timeout: 12000,
+            }
+          );
+
+          const places = response.data.places || [];
+          for (const p of places) {
+            const id = p.id || (p.displayName?.text + p.formattedAddress);
+            if (id && !allPlacesMap.has(id)) {
+              allPlacesMap.set(id, { ...p, searchedCategory: cat });
+            }
           }
+        } catch (err: any) {
+          console.warn(`[PlacesService] Sub-query "${query}" partial warning:`, err.message);
         }
-      } catch (err: any) {
-        console.warn(`[PlacesService] Sub-query "${query}" partial warning:`, err.message);
       }
     }
 
     const uniquePlaces = Array.from(allPlacesMap.values());
-    console.log(`[PlacesService] Extracted ${uniquePlaces.length} total unique places from Google API.`);
+    console.log(`[PlacesService] Extracted ${uniquePlaces.length} total unique places from Google API across ${activeCategories.length} niches.`);
 
     const leads: PlaceLeadResult[] = uniquePlaces.map((p: any) => {
       const website = p.websiteUri || '';
@@ -100,7 +112,7 @@ export async function searchPlaces(
       return {
         external_id: p.id || `pl_${Math.random().toString(36).slice(2, 9)}`,
         name: businessName,
-        category: p.primaryType || (p.types && p.types[0]) || category,
+        category: p.primaryType || (p.types && p.types[0]) || p.searchedCategory || category,
         address,
         phone: p.nationalPhoneNumber || p.internationalPhoneNumber || '',
         website: website || undefined,
@@ -186,12 +198,12 @@ function generateMaxMockPlaces(category: string, location: string): PlaceLeadRes
 
   const results: PlaceLeadResult[] = [];
 
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < 20; i++) {
     const prefix = businessPrefixes[i % businessPrefixes.length];
     const name = `${prefix} ${cleanCat}`;
     const nameSlug = name.toLowerCase().replace(/[^a-z0-9]/g, '');
     const citySlug = city.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const hasWebsite = i % 3 === 0; // ~66% have no website (high opportunity)
+    const hasWebsite = i % 3 === 0;
     const rating = parseFloat((4.0 + (i % 10) * 0.1).toFixed(1));
     const reviews = 15 + ((i * 17) % 350);
 
@@ -200,7 +212,7 @@ function generateMaxMockPlaces(category: string, location: string): PlaceLeadRes
     const phone = `+91 ${phoneDigitStart}${phoneRandom.toString().slice(0, 8)}`;
 
     results.push({
-      external_id: `mock_place_${i + 1}_${Date.now().toString(36)}`,
+      external_id: `mock_place_${cleanCat}_${i + 1}_${Date.now().toString(36)}`,
       name,
       category: cleanCat,
       address: `Shop ${i + 12}, Main Market Road, Sector ${((i * 3) % 25) + 1}, ${city}`,

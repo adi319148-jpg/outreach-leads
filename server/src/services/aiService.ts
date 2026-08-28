@@ -48,22 +48,14 @@ export function performGapAnalysis(lead: LeadForPitch): {
 } {
   if (lead.source === 'youtube') {
     return {
-      primaryGap: 'Brand collaboration and sponsorship inquiry',
+      primaryGap: 'Brand collaboration, sponsorship & short-form video repurposing',
       recommendedService: 'content_creation_reels',
       gentleObservation: 'Direct commercial collaboration inquiry.',
     };
   }
 
-  if (lead.has_website === false || !lead.website) {
-    return {
-      primaryGap: 'Direct booking & service catalog inquiry',
-      recommendedService: 'website_design',
-      gentleObservation: 'Inquiring about packages and pricing catalogue.',
-    };
-  }
-
   return {
-    primaryGap: 'Instant customer inquiry response on WhatsApp',
+    primaryGap: 'Instant 24/7 WhatsApp customer inquiry handling & bookings',
     recommendedService: 'whatsapp_ai_agent',
     gentleObservation: 'High intent customer inquiry.',
   };
@@ -95,7 +87,7 @@ export async function generatePitch(
     for (const modelName of GEMINI_MODELS) {
       try {
         await aiRateLimiter.acquire();
-        console.log(`[AI Engine] Generating Ultra-Human Niche Inquiry with Gemini (${modelName})...`);
+        console.log(`[AI Engine] Generating Multi-Service Ultra-Human Inquiry for [${targetService}] with Gemini (${modelName})...`);
         const genAI = new GoogleGenerativeAI(geminiKey);
         const model = genAI.getGenerativeModel({ model: modelName });
         const result = await model.generateContent(prompt);
@@ -117,7 +109,7 @@ export async function generatePitch(
   if (!rawPitch && claudeKey) {
     try {
       await aiRateLimiter.acquire();
-      console.log(`[AI Engine] Generating Ultra-Human Niche Inquiry with Claude...`);
+      console.log(`[AI Engine] Generating Multi-Service Ultra-Human Inquiry with Claude...`);
       const anthropic = new Anthropic({ apiKey: claudeKey });
       const response = await anthropic.messages.create({
         model: 'claude-3-haiku-20240307',
@@ -135,7 +127,7 @@ export async function generatePitch(
     }
   }
 
-  // 3. Ultra-Human Dynamic Niche-Specific Fallback Engine (Multi-variant randomized pool across 25+ niches)
+  // 3. Ultra-Human Dynamic Niche-Specific Fallback Engine (Multi-variant randomized pool across all services & niches)
   if (!rawPitch) {
     rawPitch = generateUltraHumanNicheFallback(lead, targetService, format);
     provider = 'human-inquiry-engine';
@@ -164,7 +156,7 @@ function formatLeadContext(lead: LeadForPitch): string {
 
 /**
  * Ultra-Human Prompt Generator:
- * Generates natural, high-converting customer inquiry questions that businesses reply to instantly!
+ * Generates natural, high-converting customer inquiry questions across ALL services (WhatsApp AI, Video Reels, Ads, SEO, Branding).
  */
 function buildUltraHumanInquiryPrompt(
   lead: LeadForPitch,
@@ -175,42 +167,42 @@ function buildUltraHumanInquiryPrompt(
 ): string {
   const loc = lead.address ? lead.address.split(',')[0].trim() : 'aapke city';
 
+  const serviceFocusMap: Record<OfferedService, string> = {
+    whatsapp_ai_agent: 'Inquire about automated WhatsApp booking / 24/7 inquiry bot vs manual handling for their business niche.',
+    ai_automation: 'Inquire about automating customer inquiries and instant lead qualification for their niche.',
+    content_creation_reels: 'Inquire about short-form viral reels, video editing & customer showcase clips tailored for their niche.',
+    paid_ads: 'Inquire about local Meta / Google targeted customer acquisition ads for their niche in ' + loc + '.',
+    gmb_local_seo: 'Inquire about Google Maps local search visibility and direct call inquiries.',
+    branding_logo: 'Inquire about brand identity revamp, catalogue & social media creatives.',
+    social_media_management: 'Inquire about social media management and regular creative posts for their brand.',
+    website_design: 'Inquire about their booking website or catalogue landing page.',
+    general: 'Ask a high-intent, natural niche-specific customer inquiry question.',
+  };
+
   return `You are a real, friendly human writing a short, conversational WhatsApp message to an Indian business owner or content creator.
 
 BUSINESS DETAILS:
 ${leadContext}
 
-GOAL:
-Start a genuine, natural conversation that guarantees a fast reply from the business owner by asking a relevant, niche-specific inquiry question (like a genuine prospective customer or client).
+TARGET SERVICE/ANGLE:
+${serviceFocusMap[targetService] || serviceFocusMap.general}
 
-STRICT HUMAN COPYWRITING RULES (DO NOT SOUND LIKE AI OR TELEMARKETER):
+STRICT HUMAN COPYWRITING RULES (ZERO AI CLICHÉS, ZERO ROBOTIC TONE):
 1. ABSOLUTELY DO NOT MENTION RATINGS, STARS, OR REVIEWS (e.g. NEVER say "4.8 rating", "5 stars", "Google reviews dekhe"). Real humans NEVER mention stars.
-2. ABSOLUTELY DO NOT start with "Main X company se bol raha hoon" or "I hope this finds you well" or any robotic opener.
-3. ASK A NICHE-RELEVANT NATURAL QUESTION:
-   - If Travel / Tour: Ask about customized tour packages (e.g. Goa/Manali or upcoming holiday package pricing & itinerary on WhatsApp).
-   - If Dental / Clinic / Doctor: Ask about consultation timings, fees, or appointment booking process.
-   - If Hospital / IVF / Dermatology: Ask about specialist consultation slots and treatment estimate.
-   - If Real Estate / Builder / Broker: Ask about brochure, ongoing projects, or 2BHK/3BHK starting price range in ${loc}.
-   - If Restaurant / Cafe / Bakery: Ask about table booking, party celebration packages, or menu on WhatsApp.
-   - If Gym / Fitness / Yoga: Ask about monthly/quarterly membership charges, timings, or personal trainer availability.
-   - If Salon / Spa / Makeup: Ask about hair spa/facial/bridal packages price list.
-   - If Interior / Architect / Modular Kitchen: Ask about flat interior packages, estimate process, and portfolio on WhatsApp.
-   - If Event / Wedding / Photography: Ask about dates availability, pricing packages, and portfolio on WhatsApp.
-   - If Coaching / Tuition / School: Ask about upcoming batch schedule, fee structure, and demo class.
-   - If CA / CS / Tax / Legal: Ask about GST/Tax filing consultation charges and appointment slots.
-   - If Car Detailing / Garage: Ask about ceramic coating, full service packages, and pricing.
-   - If Boutique / Jewellery: Ask about latest designer collection catalogue and custom orders.
-   - If Cleaning / Pest Control: Ask about full home deep cleaning charges and available time slots.
-   - If Pet Care / Vet: Ask about grooming packages, vet consultation, and timings.
-   - If Astrologer / Vastu: Ask about personal consultation charges and appointment schedule.
-   - If Logistics / Packers & Movers: Ask about shifting quotation and estimate process.
-   - If Security / CCTV: Ask about camera installation packages and site inspection.
-   - If Agency / IT / Website: Ask about basic quote, portfolio, and timeline for a project.
-   - If YouTube Creator: Ask about brand collaboration, sponsorship details, or collaboration process.
-   - If any other business: Ask about their service packages, catalogue, or current booking process on WhatsApp.
-4. TONE: 100% natural, polite Indian Hinglish with "Aap".
-5. LENGTH: Super short (2 to 3 lines max, under 40 words). Must look like a real person typed it on their phone!
-6. FORMAT: Clean WhatsApp message (no subject line).
+2. ABSOLUTELY DO NOT start with "Main X company se bol raha hoon" or "I hope this finds you well" or any telemarketer opener.
+3. DO NOT LIMIT TO JUST WEBSITES. Adapt the message directly to the business category and target angle (e.g. WhatsApp Bot, Reels Video Editing, Ads, Booking Inquiry, etc.).
+4. ASK A NATURAL NICHE-RELEVANT QUESTION (like a real person typing on WhatsApp):
+   - For Travel: Ask about holiday package pricing, Goa/Manali itinerary, or WhatsApp booking.
+   - For Clinics/Dentists: Ask about consultation timings, appointments, or automated WhatsApp booking.
+   - For Real Estate: Ask about brochures, 2BHK/3BHK prices, or project video walkthroughs.
+   - For Gyms/Fitness: Ask about membership fees, trainer availability, or workout reels.
+   - For Restaurants: Ask about table booking, party packages, or menu details on WhatsApp.
+   - For Salons/Spas: Ask about service packages, rate list, or appointment scheduling.
+   - For Interiors: Ask about 3BHK interior packages, portfolio, or site visit.
+   - For YouTube Creators: Ask about brand collaborations, sponsorships, or short-form video repurposing.
+5. TONE: 100% natural, polite Indian Hinglish with "Aap".
+6. LENGTH: Super short (2 to 3 lines max, under 40 words). Must look like an actual message typed on a smartphone!
+7. FORMAT: Clean WhatsApp message (no subject line).
 
 ${customInstructions ? `Special guidance: ${customInstructions}` : ''}
 
@@ -222,8 +214,8 @@ function cleanPitchText(text: string): string {
 }
 
 /**
- * Ultra-Human Dynamic Niche Fallback Engine
- * Comprehensive pre-trained library with 5+ realistic, natural inquiry questions across 27+ Indian industry niches (NO ratings, 100% human).
+ * Ultra-Human Dynamic Niche & Multi-Service Fallback Engine
+ * Comprehensive pre-trained library with 5+ realistic, natural inquiry questions across 27+ Indian industry niches & ALL offered services (NO ratings, 100% human).
  */
 function generateUltraHumanNicheFallback(
   lead: LeadForPitch,
@@ -235,7 +227,48 @@ function generateUltraHumanNicheFallback(
   const loc = lead.address ? lead.address.split(',')[0].trim() : 'aapke yahan';
   const variant = Math.floor(Math.random() * 5);
 
-  // 1. TRAVEL & TOURS / HOLIDAY PACKAGES
+  // 1. SPECIFIC SERVICE: WHATSAPP AI AGENT & AUTOMATION (Across all niches)
+  if (service === 'whatsapp_ai_agent' || service === 'ai_automation') {
+    const waOptions = [
+      `Hi ${name} team! Quick question tha: WhatsApp pe customer inquiries aur bookings ke liye automatic bot use karte hain ya staff manually handle karta hai? Ek 24/7 smart AI bot ka 30-sec demo share karun?`,
+      `Hello ${name} team! ${loc} mein aapka business notice kiya. Customers ke WhatsApp messages ko 5 second me answer aur qualify karne ke liye ek AI Assistant concept draft kiya hai—kya preview dekhna chahenge?`,
+      `Hi! ${name} ke daily customer inquiries ko automate karke direct appointments book karne ke liye ek smart WhatsApp AI bot ready kiya hai—kya main ek short demo share karun?`,
+      `Namaste ${name} team! Peak hours me customer WhatsApp queries automate karne ke baare mein poochna tha—ek quick 30-sec live concept share karun aapke sath?`,
+    ];
+    return waOptions[variant % waOptions.length];
+  }
+
+  // 2. SPECIFIC SERVICE: SHORT-FORM REELS & VIDEO EDITING
+  if (service === 'content_creation_reels') {
+    const reelOptions = [
+      `Hi ${name} team! ${loc} mein aapke business ke liye 2 high-converting Instagram reels aur customer showcase video concepts script kiye hain—kya preview share karun?`,
+      `Hello! ${name} ke brand visibility ko short-form viral reels aur video editing ke through 3x boost karne ka ek quick plan layout kiya hai—kya samples WhatsApp pe share karun?`,
+      `Hi ${name}! Aapke services aur work ko highlight karne ke liye 2 aesthetic short video concepts format kiye hain—kya main preview clips share karun?`,
+    ];
+    return reelOptions[variant % reelOptions.length];
+  }
+
+  // 3. SPECIFIC SERVICE: META & GOOGLE PAID ADS
+  if (service === 'paid_ads') {
+    const adsOptions = [
+      `Hi ${name} team! ${loc} ke local customers se direct weekly 20+ inquiries attract karne ke liye targeted ads ka ek quick concept layout ready kiya hai—kya share karun?`,
+      `Hello ${name} team! Aapke niche me local customers target karne ke liye high-converting lead generation campaign ka breakdown dekhna chahenge?`,
+    ];
+    return adsOptions[variant % adsOptions.length];
+  }
+
+  // 4. SPECIFIC SERVICE: GOOGLE MAPS LOCAL SEO
+  if (service === 'gmb_local_seo') {
+    const seoOptions = [
+      `Hi ${name} team! Google Maps pe aapki listing dekhi—local search visibility aur direct customer calls double karne ke liye ek 2-page ranking audit prepare ki hai—kya share karun?`,
+      `Hello ${name} team! ${loc} ke area search results me top rank karne aur calls badhane ke liye ek quick audit breakdown ready hai—kya WhatsApp pe share karun?`,
+    ];
+    return seoOptions[variant % seoOptions.length];
+  }
+
+  // 5. NICHE-SPECIFIC DIRECT INQUIRIES (27+ NICHES)
+
+  // TRAVEL & TOURS
   if (/travel|tour|holiday|trip|flight|visa|resort|vacation|trek/i.test(cat)) {
     const options = [
       `Hi ${name} team! Next month customized holiday package ke baare mein poochna tha—Manali / Goa ke 4-day tour packages aur itinerary ki details WhatsApp pe mil sakti hain kya?`,
@@ -247,7 +280,7 @@ function generateUltraHumanNicheFallback(
     return options[variant % options.length];
   }
 
-  // 2. DENTAL & CLINICS
+  // DENTAL & CLINICS
   if (/dental|dentist|ortho|teeth|tooth/i.test(cat)) {
     const options = [
       `Hello doctor / ${name} team! Consultation aur checkup ke liye timings kya rehti hain? Pre-booking zaroori hai ya direct walk-in kar sakte hain?`,
@@ -259,7 +292,7 @@ function generateUltraHumanNicheFallback(
     return options[variant % options.length];
   }
 
-  // 3. HOSPITALS, MULTI-SPECIALTY, IVF & EYE CLINICS
+  // HOSPITALS & CLINICS
   if (/hospital|clinic|doctor|ivf|eye|physio|orthopedic|care|medical/i.test(cat)) {
     const options = [
       `Hello ${name} team! Doctor consultation timings aur appointment booking process ki details WhatsApp pe mil sakti hain kya?`,
@@ -270,7 +303,7 @@ function generateUltraHumanNicheFallback(
     return options[variant % options.length];
   }
 
-  // 4. DERMATOLOGY, SKIN CARE & HAIR TRANSPLANT
+  // DERMATOLOGY & SKIN CARE
   if (/skin|derma|hair|cosmetic|laser|aesthetic/i.test(cat)) {
     const options = [
       `Hi ${name} team! Skin consultation aur hair treatment packages ki price list aur appointment slots WhatsApp pe mil sakte hain kya?`,
@@ -280,7 +313,7 @@ function generateUltraHumanNicheFallback(
     return options[variant % options.length];
   }
 
-  // 5. RESTAURANTS, CAFES, BAKERIES & FOOD
+  // RESTAURANTS & CAFES
   if (/restaurant|cafe|bakery|food|hotel|bar|pizza|dining|lounge|cater|sweet|cake/i.test(cat)) {
     const options = [
       `Hi ${name} team! Weekend pe family dinner / party booking ke liye table reservation available hai kya? Menu aur timings share kar sakte hain?`,
@@ -292,7 +325,7 @@ function generateUltraHumanNicheFallback(
     return options[variant % options.length];
   }
 
-  // 6. REAL ESTATE, BUILDERS & PROPERTY DEALERS
+  // REAL ESTATE & BUILDERS
   if (/real estate|builder|property|realtor|developer|housing|flat|apartment|plot|infra/i.test(cat)) {
     const options = [
       `Hello ${name} team! ${loc} mein ongoing residential / commercial projects ke brochure aur starting price range WhatsApp pe share kar sakte hain kya?`,
@@ -304,7 +337,7 @@ function generateUltraHumanNicheFallback(
     return options[variant % options.length];
   }
 
-  // 7. GYMS, FITNESS, YOGA & DANCE
+  // GYMS & FITNESS
   if (/gym|fitness|crossfit|yoga|trainer|workout|sports|zumba|dance|martial|pilates/i.test(cat)) {
     const options = [
       `Hi ${name} team! Monthly aur quarterly membership ke charges aur timings kya hain? Personal trainer options available hain kya?`,
@@ -316,7 +349,7 @@ function generateUltraHumanNicheFallback(
     return options[variant % options.length];
   }
 
-  // 8. SALONS, SPAS, MAKEUP & BEAUTY
+  // SALONS & SPAS
   if (/salon|spa|beauty|parlour|makeup|hair|barber|nail|skincare|bridal/i.test(cat)) {
     const options = [
       `Hi ${name} team! Hair treatments aur facial packages ki price list WhatsApp pe mil sakti hai kya? Weekend appointment book karni thi.`,
@@ -328,7 +361,7 @@ function generateUltraHumanNicheFallback(
     return options[variant % options.length];
   }
 
-  // 9. INTERIOR DESIGN, ARCHITECTS & MODULAR KITCHENS
+  // INTERIOR DESIGN & ARCHITECTS
   if (/interior|architect|decor|furniture|renovation|designer|modular|kitchen|wood/i.test(cat)) {
     const options = [
       `Hi ${name} team! Flat interior design ke basic packages aur portfolio check karna tha—kya details WhatsApp pe share kar sakte hain?`,
@@ -340,7 +373,7 @@ function generateUltraHumanNicheFallback(
     return options[variant % options.length];
   }
 
-  // 10. WEDDING PHOTOGRAPHERS, CINEMATOGRAPHY & STUDIOS
+  // WEDDING PHOTOGRAPHY & STUDIOS
   if (/photo|wedding photo|studio|cinematography|camera|videography/i.test(cat)) {
     const options = [
       `Hi ${name} team! Upcoming wedding / pre-wedding shoot ke liye dates availability aur photography packages ki details WhatsApp pe mil sakti hain kya?`,
@@ -350,7 +383,7 @@ function generateUltraHumanNicheFallback(
     return options[variant % options.length];
   }
 
-  // 11. EVENT PLANNERS, BANQUETS & DECORATORS
+  // EVENT PLANNERS & BANQUETS
   if (/event|wedding planner|banquet|dj|stage|catering|hall|resort venue/i.test(cat)) {
     const options = [
       `Hi ${name} team! Upcoming family function ke liye dates availability aur event decoration packages ki rate list WhatsApp pe mil sakti hai kya?`,
@@ -360,7 +393,7 @@ function generateUltraHumanNicheFallback(
     return options[variant % options.length];
   }
 
-  // 12. COACHING, TUITION, IELTS & EDUCATION
+  // COACHING & EDUCATION
   if (/coaching|tuition|class|school|academy|institute|ielts|spoken|exam|upsc|jee|neet/i.test(cat)) {
     const options = [
       `Hello ${name} team! Upcoming batch admission, schedule aur fee structure ki details WhatsApp pe mil sakti hain kya?`,
@@ -371,7 +404,7 @@ function generateUltraHumanNicheFallback(
     return options[variant % options.length];
   }
 
-  // 13. CA, CS, TAX & GST CONSULTANTS
+  // CA & TAX CONSULTANTS
   if (/ca |chartered|tax|gst|legal|advocate|lawyer|consultant|accountant|auditor/i.test(cat)) {
     const options = [
       `Hi ${name} team! Business GST filing aur tax consultation ke charges aur appointment process ki details WhatsApp pe mil sakti hain kya?`,
@@ -381,7 +414,7 @@ function generateUltraHumanNicheFallback(
     return options[variant % options.length];
   }
 
-  // 14. CAR DETAILING & AUTOMOBILE WORKSHOPS
+  // CAR DETAILING & GARAGES
   if (/car|auto|bike|garage|motor|detailing|repair|tyre|service|coating|ceramic/i.test(cat)) {
     const options = [
       `Hi ${name} team! Car detailing aur ceramic coating / full service ke packages aur pricing WhatsApp pe mil sakti hai kya?`,
@@ -391,7 +424,7 @@ function generateUltraHumanNicheFallback(
     return options[variant % options.length];
   }
 
-  // 15. FASHION BOUTIQUES, DESIGNER WEAR & JEWELLERY
+  // FASHION BOUTIQUES & JEWELLERY
   if (/boutique|fashion|clothing|dress|jewel|bridal wear|tailor|lehenga|saree/i.test(cat)) {
     const options = [
       `Hi ${name} team! Latest designer collection ka catalogue aur custom stitching/order ka process WhatsApp pe share kar sakte hain kya?`,
@@ -401,7 +434,7 @@ function generateUltraHumanNicheFallback(
     return options[variant % options.length];
   }
 
-  // 16. CLEANING, PEST CONTROL & HOME SERVICES
+  // CLEANING & PEST CONTROL
   if (/cleaning|pest|ac repair|plumber|electrician|home service|solar/i.test(cat)) {
     const options = [
       `Hi ${name} team! Full home deep cleaning aur service packages ki pricing list WhatsApp pe mil sakti hai kya?`,
@@ -411,7 +444,7 @@ function generateUltraHumanNicheFallback(
     return options[variant % options.length];
   }
 
-  // 17. PET CLINICS & GROOMING
+  // PET CARE & GROOMING
   if (/pet|vet|dog|cat|veterinary|puppy|animal/i.test(cat)) {
     const options = [
       `Hi ${name} team! Pet grooming packages aur vet consultation timings ki details WhatsApp pe mil sakti hain kya?`,
@@ -420,54 +453,7 @@ function generateUltraHumanNicheFallback(
     return options[variant % options.length];
   }
 
-  // 18. ASTROLOGY, VASTU & NUMEROLOGY
-  if (/astro|vastu|numerology|kundali|horoscope/i.test(cat)) {
-    const options = [
-      `Hi ${name} team! Personal consultation charges aur available appointment slots ki details WhatsApp pe mil sakti hain kya?`,
-      `Hello! Vastu consultation aur horoscope reading ka kya process rehta hai? Details share kar dijiye.`,
-    ];
-    return options[variant % options.length];
-  }
-
-  // 19. LOGISTICS, PACKERS & MOVERS
-  if (/packer|mover|logistics|transport|courier|shifting/i.test(cat)) {
-    const options = [
-      `Hi ${name} team! House shifting / transport service ke charges aur quotation ka kya process rehta hai? Details WhatsApp pe bhej dijiye.`,
-      `Hello! Shifting estimate aur service availability check karni thi—WhatsApp pe rate card mil sakta hai?`,
-    ];
-    return options[variant % options.length];
-  }
-
-  // 20. SECURITY, CCTV & SMART HOME
-  if (/cctv|security|camera|smart home|automation/i.test(cat)) {
-    const options = [
-      `Hi ${name} team! CCTV camera installation aur smart security packages ki pricing details WhatsApp pe share kar sakte hain kya?`,
-      `Hello! Home/Office security setup ke basic packages aur site visit consultation ke baare mein poochna tha.`,
-    ];
-    return options[variant % options.length];
-  }
-
-  // 21. HOTELS, HOMESTAYS & RESORTS
-  if (/hotel|resort|homestay|cottage|villa|stay/i.test(cat)) {
-    const options = [
-      `Hi ${name} team! Upcoming weekend stay ke liye room availability aur tariff rates WhatsApp pe mil sakte hain kya?`,
-      `Hello! Group stay / family package rates aur amenities details WhatsApp pe share kar dijiye please.`,
-    ];
-    return options[variant % options.length];
-  }
-
-  // 22. DIGITAL MARKETING, IT & WEB AGENCIES
-  if (/agency|marketing|seo|software|developer|web|media|it company/i.test(cat)) {
-    const options = [
-      `Hi ${name} team! Website development aur digital marketing ke basic packages aur portfolio check karna tha—details WhatsApp pe share kar sakte hain?`,
-      `Hello! Business website redesign aur SEO ke liye basic quote aur timeline kya rehti hai aapki?`,
-      `Hi! Lead generation ads aur social media management ke packages ki details mil sakti hain kya?`,
-      `Hello team! Custom web / mobile project ke liye portfolio aur consultation process WhatsApp pe share kar dijiye.`,
-    ];
-    return options[variant % options.length];
-  }
-
-  // 23. YOUTUBE CREATORS & INFLUENCERS
+  // YOUTUBE CREATORS
   if (lead.source === 'youtube') {
     const options = [
       `Hi ${name}! Aapke channel pe videos kaafi regular aur engaging lagte hain.\n\nEk quick brand collaboration / sponsorship ke baare mein poochna tha—kya aapse yahan WhatsApp ya email pe discuss kar sakte hain?`,
@@ -477,7 +463,7 @@ function generateUltraHumanNicheFallback(
     return options[variant % options.length];
   }
 
-  // 24. UNIVERSAL LOCAL BUSINESS FALLBACK (NO RATINGS, 100% NATURAL HUMAN INQUIRY)
+  // UNIVERSAL BUSINESS FALLBACK
   const defaultOptions = [
     `Hi ${name} team! ${loc} mein aapka business dekha—aapke current services / packages aur pricing ki details WhatsApp pe share kar sakte hain kya?`,
     `Hello ${name} team! Ek quick inquiry thi—aapke service packages aur appointment booking ka kya process rehta hai? Details share kar dijiye please.`,

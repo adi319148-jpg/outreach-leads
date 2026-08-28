@@ -243,7 +243,7 @@ export const PlacesSearch: React.FC<PlacesSearchProps> = ({ onLeadsSaved, onOpen
 
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[11px] text-slate-400 font-semibold">Top Niches:</span>
+              <span className="text-[11px] text-slate-400 font-semibold">Top Niches (Multi-Select):</span>
               {[
                 '✈️ Travel Agencies',
                 '🦷 Dental Clinics',
@@ -263,17 +263,43 @@ export const PlacesSearch: React.FC<PlacesSearchProps> = ({ onLeadsSaved, onOpen
                 '🧹 Home Deep Cleaning',
               ].map((tag) => {
                 const cleanTag = tag.replace(/^[^\s]+\s/, '');
+                const currentNiches = category.split(',').map((c) => c.trim().toLowerCase());
+                const isSelected = currentNiches.includes(cleanTag.toLowerCase());
+
                 return (
                   <button
                     type="button"
                     key={tag}
-                    onClick={() => setCategory(cleanTag)}
-                    className="px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-[11px] text-slate-300 hover:text-white transition-colors border border-slate-700/60 font-medium"
+                    onClick={() => {
+                      const list = category.split(',').map((c) => c.trim()).filter(Boolean);
+                      if (isSelected) {
+                        const next = list.filter((c) => c.toLowerCase() !== cleanTag.toLowerCase());
+                        setCategory(next.join(', '));
+                      } else {
+                        setCategory([...list, cleanTag].join(', '));
+                      }
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] transition-all border font-medium flex items-center gap-1 ${
+                      isSelected
+                        ? 'bg-sky-500/20 border-sky-500 text-sky-300 shadow-sm shadow-sky-500/20 font-bold'
+                        : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700/60'
+                    }`}
                   >
-                    {tag}
+                    <span>{tag}</span>
+                    {isSelected && <span className="text-[10px] text-sky-400">✓</span>}
                   </button>
                 );
               })}
+
+              {category && (
+                <button
+                  type="button"
+                  onClick={() => setCategory('')}
+                  className="px-2 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-[10px] font-semibold border border-rose-500/20 transition-colors"
+                >
+                  Clear All
+                </button>
+              )}
             </div>
 
             <button
