@@ -15,8 +15,6 @@ import {
   AlertCircle,
   ExternalLink,
   Sliders,
-  Palette,
-  Film,
   Send,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
@@ -24,9 +22,10 @@ import confetti from 'canvas-confetti';
 interface YoutubeSearchProps {
   onLeadsSaved: () => void;
   onOpenCampaign?: () => void;
+  onOpenSettings?: () => void;
 }
 
-export const YoutubeSearch: React.FC<YoutubeSearchProps> = ({ onLeadsSaved, onOpenCampaign }) => {
+export const YoutubeSearch: React.FC<YoutubeSearchProps> = ({ onLeadsSaved, onOpenCampaign, onOpenSettings }) => {
   const [keyword, setKeyword] = useState('Tech Reviews');
   const [subRangePreset, setSubRangePreset] = useState<string>('10k_50k');
   const [minSubs, setMinSubs] = useState<number>(10000);
@@ -76,7 +75,6 @@ export const YoutubeSearch: React.FC<YoutubeSearchProps> = ({ onLeadsSaved, onOp
         maxSubs: Number(maxSubs) || 0,
         qualityFilter,
       });
-      // Start unchecked so user selects only the ones they want
       setResults(data.leads.map((l) => ({ ...l, selected: false })));
       setIsMock(data.isMock);
       if (data.message) {
@@ -109,7 +107,7 @@ export const YoutubeSearch: React.FC<YoutubeSearchProps> = ({ onLeadsSaved, onOp
     setResults(
       results.map((r, i) => {
         if (i === index) {
-          if (r.already_contacted) return r; // Cannot select already contacted channels
+          if (r.already_contacted) return r;
           return { ...r, selected: !r.selected };
         }
         return r;
@@ -137,21 +135,20 @@ export const YoutubeSearch: React.FC<YoutubeSearchProps> = ({ onLeadsSaved, onOp
         subscriber_count: s.subscriber_count,
         video_count: s.video_count,
         view_count: s.view_count,
-        description: s.description,
-        website: s.website,
         contact_email: s.contact_email,
+        phone: s.phone,
+        website: s.website,
+        description: s.description,
+        thumbnail_url: s.thumbnail_url,
         in_campaign_queue: Boolean(pushToCampaign),
-        thumbnail_quality_status: s.thumbnail_quality_status,
-        opportunity_reason: s.opportunity_reason,
-        recent_video_title: s.recent_video_title,
-        recent_video_thumbnail: s.recent_video_thumbnail,
+        offered_service: 'video_editing' as const,
       }));
 
-      const res = await saveLeads(payload);
+      const res = await saveLeads(payload, false, 'video_editing');
       setSaveSuccessMsg(
         pushToCampaign
           ? `Saved ${res.savedCount} creators and sent to Bulk Campaign Queue! 🚀`
-          : `Saved ${res.savedCount} creators to Saved Creators CRM!`
+          : `Saved ${res.savedCount} creators to Saved YouTube CRM!`
       );
       confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
       onLeadsSaved();
@@ -159,47 +156,15 @@ export const YoutubeSearch: React.FC<YoutubeSearchProps> = ({ onLeadsSaved, onOp
         setTimeout(onOpenCampaign, 800);
       }
     } catch (err: any) {
-      console.error('Failed to save YouTube leads:', err);
+      console.error('Failed to save YouTube creators:', err);
       setMessage(err.response?.data?.error || 'Failed to save leads.');
     } finally {
       setSaving(false);
     }
   };
 
-  const handlePushSingle = async (channel: YouTubeSearchResult) => {
-    setSaving(true);
-    try {
-      const payload = [{
-        source: 'youtube' as const,
-        external_id: channel.external_id,
-        name: channel.name,
-        category: channel.category,
-        channel_handle: channel.channel_handle,
-        subscriber_count: channel.subscriber_count,
-        video_count: channel.video_count,
-        view_count: channel.view_count,
-        description: channel.description,
-        website: channel.website,
-        contact_email: channel.contact_email,
-        in_campaign_queue: true,
-        thumbnail_quality_status: channel.thumbnail_quality_status,
-        opportunity_reason: channel.opportunity_reason,
-        recent_video_title: channel.recent_video_title,
-        recent_video_thumbnail: channel.recent_video_thumbnail,
-      }];
-
-      await saveLeads(payload);
-      setSaveSuccessMsg(`Sent "${channel.name}" to Bulk Campaign Queue! 🚀`);
-      onLeadsSaved();
-      if (onOpenCampaign) setTimeout(onOpenCampaign, 600);
-    } catch (err: any) {
-      console.error('Failed to save single creator to campaign:', err);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const formatNumber = (num: number) => {
+  const formatNumber = (num?: number) => {
+    if (!num) return '0';
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
     if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
     return num.toLocaleString();
@@ -207,128 +172,126 @@ export const YoutubeSearch: React.FC<YoutubeSearchProps> = ({ onLeadsSaved, onOp
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
-      {/* Search Bar & Advanced YouTube Optimization Filters */}
-      <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+      {/* Search Filter Card */}
+      <div className="p-6 rounded-2xl bg-[#121215] border border-zinc-800 space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-zinc-800">
           <div>
-            <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
-              <Youtube className="h-5 w-5 text-rose-400" />
-              <span>YouTube Creator & Thumbnail Quality Discovery</span>
+            <h2 className="text-base font-bold text-white flex items-center gap-2">
+              <Youtube className="h-5 w-5 text-white" />
+              <span>YouTube Creator & Channel Discovery</span>
             </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Find creators whose <strong>Thumbnails need redesigning</strong> or whose <strong>Videos need short-form editing</strong>.
+            <p className="text-xs text-zinc-400 mt-0.5">
+              Find content creators by niche, subscriber sweet-spots, and quality opportunities.
             </p>
           </div>
 
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-300 border border-rose-500/20">
-            <Sparkles className="h-3.5 w-3.5" />
-            <span>AI Visual Quality Audit</span>
+          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-zinc-900 text-zinc-300 border border-zinc-800">
+            <Video className="h-3.5 w-3.5 text-zinc-400" />
+            <span>YouTube Creator Pipeline</span>
           </div>
         </div>
 
         <form onSubmit={handleSearch} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-            {/* Keyword / Niche */}
-            <div className="md:col-span-5 space-y-1.5">
-              <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                <Search className="h-3.5 w-3.5 text-rose-400" />
-                <span>Niche Keyword / Topic</span>
+            {/* Niche / Topic */}
+            <div className="md:col-span-6 space-y-1.5">
+              <label className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
+                <Search className="h-3.5 w-3.5 text-zinc-400" />
+                <span>Channel Niche / Search Keyword</span>
               </label>
               <input
                 type="text"
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
-                placeholder="e.g. AI Automation, Real Estate, Fitness, Tech Reviews"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 focus:border-rose-500 focus:ring-1 focus:ring-rose-500 text-xs text-slate-100 placeholder-slate-500 transition-all font-sans"
+                placeholder="e.g. AI SaaS, Fitness & Gym, Gaming, Tech Reviews"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-950 border border-zinc-800 focus:border-white focus:ring-1 focus:ring-white text-xs text-white placeholder-zinc-500 transition-all font-sans"
                 required
               />
             </div>
 
-            {/* Subscriber Range Presets */}
-            <div className="md:col-span-4 space-y-1.5">
-              <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                <Users className="h-3.5 w-3.5 text-rose-400" />
-                <span>Subscriber Range Preset</span>
+            {/* Subscriber Preset */}
+            <div className="md:col-span-3 space-y-1.5">
+              <label className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
+                <Users className="h-3.5 w-3.5 text-zinc-400" />
+                <span>Subscriber Range</span>
               </label>
               <select
                 value={subRangePreset}
                 onChange={(e) => handlePresetChange(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-300 focus:border-rose-500"
+                className="w-full px-3 py-2.5 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-zinc-300 focus:border-white"
               >
-                <option value="1k_10k">⚡ 1K – 10K (Emerging Creators)</option>
-                <option value="10k_50k">🎯 10K – 50K (Micro Influencers - Sweet Spot)</option>
-                <option value="50k_200k">🚀 50K – 200K (Mid-Tier Creators)</option>
-                <option value="200k_1m">👑 200K – 1M (Macro Creators)</option>
-                <option value="all">🌐 All Ranges (0 – 10M+)</option>
-                <option value="custom">⚙️ Custom Range</option>
+                <option value="1k_10k">1K - 10K (Micro)</option>
+                <option value="10k_50k">10K - 50K (Sweet Spot)</option>
+                <option value="50k_200k">50K - 200K (Growing)</option>
+                <option value="200k_1m">200K - 1M (High Reach)</option>
+                <option value="all">All Channels</option>
               </select>
             </div>
 
-            {/* Visual & Thumbnail Quality Opportunity Filter */}
+            {/* Quality Opportunity Filter */}
             <div className="md:col-span-3 space-y-1.5">
-              <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                <Palette className="h-3.5 w-3.5 text-rose-400" />
-                <span>Visual Audit Filter</span>
+              <label className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
+                <Sliders className="h-3.5 w-3.5 text-zinc-400" />
+                <span>Service Angle</span>
               </label>
               <select
                 value={qualityFilter}
                 onChange={(e) => setQualityFilter(e.target.value as any)}
-                className="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-300 focus:border-rose-500"
+                className="w-full px-3 py-2.5 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-zinc-300 focus:border-white"
               >
-                <option value="all">All Quality Types</option>
-                <option value="needs_thumbnail_redesign">🎨 Needs Thumbnail Redesign</option>
-                <option value="needs_video_editing">🎬 Needs Video Editing & Reels</option>
+                <option value="all">All Channels</option>
+                <option value="needs_thumbnail_redesign">Thumbnail Redesign Opportunities</option>
+                <option value="needs_video_editing">Video Editing Opportunities</option>
               </select>
             </div>
           </div>
 
-          {/* Custom Sub Range inputs if selected */}
-          {subRangePreset === 'custom' && (
-            <div className="grid grid-cols-2 gap-4 p-3 rounded-xl bg-slate-950 border border-slate-800 animate-in fade-in">
-              <div>
-                <label className="text-[11px] text-slate-400">Min Subscribers:</label>
-                <input
-                  type="number"
-                  value={minSubs}
-                  onChange={(e) => setMinSubs(Number(e.target.value) || 0)}
-                  className="w-full mt-1 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-100"
-                />
-              </div>
-              <div>
-                <label className="text-[11px] text-slate-400">Max Subscribers:</label>
-                <input
-                  type="number"
-                  value={maxSubs}
-                  onChange={(e) => setMaxSubs(Number(e.target.value) || 0)}
-                  className="w-full mt-1 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-slate-100"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Quick Niche Tags + Submit */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+          {/* Presets Row */}
+          <div className="space-y-2 pt-2 border-t border-zinc-800/60">
+            <span className="text-[11px] text-zinc-400 font-semibold">🎯 Popular Niches:</span>
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[11px] text-slate-400">Popular:</span>
-              {['Tech Reviews', 'Podcast Clips', 'Real Estate', 'Fitness Coaching', 'Personal Finance'].map((tag) => (
+              {[
+                'Tech Reviews',
+                'AI & Automation',
+                'Fitness & Gym',
+                'Finance & Stocks',
+                'Gaming & Streaming',
+                'Self Improvement',
+                'Real Estate',
+                'Crypto & Web3',
+                'Cooking & Food',
+                'Travel Vlogs',
+              ].map((niche) => (
                 <button
                   type="button"
-                  key={tag}
-                  onClick={() => setKeyword(tag)}
-                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-300 hover:text-white transition-colors"
+                  key={niche}
+                  onClick={() => setKeyword(niche)}
+                  className={`px-3 py-1.5 rounded-xl text-xs transition-all border font-medium ${
+                    keyword.toLowerCase() === niche.toLowerCase()
+                      ? 'bg-white border-white text-zinc-950 font-bold shadow-sm'
+                      : 'bg-zinc-900/80 hover:bg-zinc-800 text-zinc-400 hover:text-white border-zinc-800'
+                  }`}
                 >
-                  {tag}
+                  {niche}
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Action Footer */}
+          <div className="pt-4 border-t border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-xs text-zinc-400">
+              <span className="w-2 h-2 rounded-full bg-white" />
+              <span>YouTube Data API v3 integration with subscriber analysis & video quality checks</span>
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-lg shadow-rose-600/30 transition-all disabled:opacity-50"
+              className="flex items-center justify-center gap-2.5 px-7 py-3 rounded-xl bg-white hover:bg-zinc-200 text-zinc-950 font-bold text-xs shadow-md transition-all disabled:opacity-50 whitespace-nowrap shrink-0 cursor-pointer"
             >
-              <Youtube className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-              <span>{loading ? 'Analyzing YouTube Channels...' : 'Find Creators & Audit Visuals'}</span>
+              <Search className={`h-4 w-4 text-zinc-950 ${loading ? 'animate-spin' : ''}`} />
+              <span>{loading ? 'Searching YouTube...' : 'Discover Creators ➔'}</span>
             </button>
           </div>
         </form>
@@ -336,36 +299,47 @@ export const YoutubeSearch: React.FC<YoutubeSearchProps> = ({ onLeadsSaved, onOp
 
       {/* Notice / Messages */}
       {message && (
-        <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-center gap-2.5">
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          <span>{message}</span>
+        <div className="p-3.5 rounded-xl bg-zinc-900 border border-zinc-750 text-white text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <AlertCircle className="h-4 w-4 shrink-0 text-white" />
+            <span>{message}</span>
+          </div>
+          {isMock && onOpenSettings && (
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-semibold border border-zinc-700 transition-colors shrink-0"
+            >
+              <span>Add API Key in Settings</span>
+            </button>
+          )}
         </div>
       )}
 
       {saveSuccessMsg && (
-        <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs flex items-center gap-2.5">
-          <BookmarkCheck className="h-4 w-4 shrink-0" />
+        <div className="p-3.5 rounded-xl bg-zinc-900 border border-zinc-700 text-white text-xs flex items-center gap-2.5">
+          <BookmarkCheck className="h-4 w-4 shrink-0 text-white" />
           <span>{saveSuccessMsg}</span>
         </div>
       )}
 
-      {/* Results Header & Actions */}
+      {/* Results Header & Batch Actions */}
       {results.length > 0 && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-slate-900 border border-slate-800">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-[#121215] border border-zinc-800">
           <div className="flex items-center gap-3">
             <button
               onClick={toggleSelectAll}
-              className="flex items-center gap-2 text-xs font-semibold text-slate-300 hover:text-white"
+              className="flex items-center gap-2 text-xs font-semibold text-zinc-300 hover:text-white"
             >
               {results.every((r) => r.selected) ? (
-                <CheckSquare className="h-4 w-4 text-rose-400" />
+                <CheckSquare className="h-4 w-4 text-white" />
               ) : (
-                <Square className="h-4 w-4 text-slate-500" />
+                <Square className="h-4 w-4 text-zinc-500" />
               )}
               <span>Select All ({results.length})</span>
             </button>
-            <span className="text-xs text-slate-600">|</span>
-            <span className="text-xs text-rose-400 font-bold font-mono">
+            <span className="text-xs text-zinc-700">|</span>
+            <span className="text-xs text-white font-bold font-mono">
               {selectedCount} Selected
             </span>
 
@@ -375,11 +349,11 @@ export const YoutubeSearch: React.FC<YoutubeSearchProps> = ({ onLeadsSaved, onOp
                 onClick={() => setHideContacted((prev) => !prev)}
                 className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold border transition-colors ${
                   hideContacted
-                    ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-sm'
-                    : 'bg-slate-800 text-slate-400 border-slate-700'
+                    ? 'bg-zinc-800 text-white border-zinc-700'
+                    : 'bg-zinc-900 text-zinc-400 border-zinc-800'
                 }`}
               >
-                <span>🛡️ {hideContacted ? 'Contacted Hidden' : 'Showing Contacted'} ({contactedCount})</span>
+                <span>{hideContacted ? 'Contacted Hidden' : 'Showing Contacted'} ({contactedCount})</span>
               </button>
             )}
           </div>
@@ -387,217 +361,115 @@ export const YoutubeSearch: React.FC<YoutubeSearchProps> = ({ onLeadsSaved, onOp
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => handleSave(false)}
-              disabled={selectedCount === 0 || saving}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-all disabled:opacity-40"
+              disabled={saving || selectedCount === 0}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-200 text-xs font-semibold border border-zinc-750 transition-all disabled:opacity-40"
             >
-              <BookmarkCheck className="h-3.5 w-3.5 text-rose-400" />
-              <span>Save ({selectedCount}) to CRM Only</span>
+              <BookmarkCheck className="h-3.5 w-3.5" />
+              <span>Save ({selectedCount}) to CRM</span>
             </button>
 
             <button
               onClick={() => handleSave(true)}
-              disabled={selectedCount === 0 || saving}
-              className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/30 transition-all disabled:opacity-40"
+              disabled={saving || selectedCount === 0}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white hover:bg-zinc-200 text-zinc-950 text-xs font-bold shadow transition-all disabled:opacity-40"
             >
               <Send className="h-3.5 w-3.5" />
-              <span>Push Selected ({selectedCount}) to Bulk Campaign 🚀</span>
+              <span>Add ({selectedCount}) to Dispatch Queue ➔</span>
             </button>
           </div>
         </div>
       )}
 
-      {/* Results Cards Grid */}
+      {/* Results Grid / List */}
       {visibleResults.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {visibleResults.map((channel, idx) => (
             <div
-              key={idx}
+              key={channel.external_id || idx}
               onClick={() => toggleSelect(idx)}
-              className={`p-5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between space-y-4 relative ${
-                channel.already_contacted
-                  ? 'opacity-50 bg-slate-950/40 cursor-not-allowed border-slate-800'
-                  : channel.selected
-                  ? 'bg-rose-950/20 border-rose-500/80 shadow-lg ring-1 ring-rose-500/30'
-                  : 'bg-slate-900 border-slate-800 hover:border-slate-700'
-              }`}
+              className={`p-4 rounded-2xl border transition-all cursor-pointer relative flex flex-col justify-between ${
+                channel.selected
+                  ? 'bg-zinc-850 border-white text-white shadow-md'
+                  : 'bg-[#121215] border-zinc-800 hover:border-zinc-700'
+              } ${channel.already_contacted ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <div className="space-y-3">
-                {/* Header Profile */}
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    {channel.thumbnail_url ? (
-                      <img
-                        src={channel.thumbnail_url}
-                        alt={channel.name}
-                        className="w-12 h-12 rounded-full object-cover border border-slate-700 shrink-0"
-                      />
-                    ) : (
-                      <div className="w-12 h-12 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center font-bold text-sm shrink-0">
-                        {channel.name.slice(0, 1)}
-                      </div>
-                    )}
-                    <div>
-                      <h4 className="text-sm font-bold text-slate-100 line-clamp-1 flex items-center gap-1.5">
-                        <span>{channel.name}</span>
-                        {channel.already_contacted && (
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
-                            🚫 Contacted
-                          </span>
-                        )}
-                      </h4>
-                      <p className="text-xs text-rose-400 font-mono">
-                        {channel.channel_handle || `@${channel.name.toLowerCase().replace(/\s+/g, '')}`}
-                      </p>
-                    </div>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleSelect(idx);
+                      }}
+                      className="text-zinc-400 hover:text-white shrink-0"
+                    >
+                      {channel.selected ? (
+                        <CheckSquare className="h-4 w-4 text-white" />
+                      ) : (
+                        <Square className="h-4 w-4 text-zinc-600" />
+                      )}
+                    </button>
+                    <h3 className="text-sm font-bold text-white truncate">{channel.name}</h3>
                   </div>
 
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (!channel.already_contacted) toggleSelect(idx);
-                    }}
-                    disabled={Boolean(channel.already_contacted)}
-                    className="disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    {channel.selected && !channel.already_contacted ? (
-                      <CheckSquare className="h-4 w-4 text-rose-400" />
-                    ) : (
-                      <Square className="h-4 w-4 text-slate-600" />
-                    )}
-                  </button>
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-zinc-800 text-zinc-200 border border-zinc-700 shrink-0">
+                    {formatNumber(channel.subscriber_count)} subs
+                  </span>
                 </div>
 
-                {/* Thumbnail Quality Audit Opportunity Badge */}
-                {channel.thumbnail_quality_status && (
-                  <div
-                    className={`p-2.5 rounded-xl border text-xs leading-relaxed space-y-1 ${
-                      channel.thumbnail_quality_status === 'needs_thumbnail_redesign'
-                        ? 'bg-amber-500/10 border-amber-500/30 text-amber-200'
-                        : channel.thumbnail_quality_status === 'needs_video_editing'
-                        ? 'bg-purple-500/10 border-purple-500/30 text-purple-200'
-                        : 'bg-slate-950 border-slate-800 text-slate-400'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between text-[11px] font-bold">
-                      <span className="flex items-center gap-1.5">
-                        {channel.thumbnail_quality_status === 'needs_thumbnail_redesign' ? (
-                          <>
-                            <Palette className="h-3.5 w-3.5 text-amber-400" />
-                            <span className="text-amber-300">Needs Thumbnail Redesign</span>
-                          </>
-                        ) : channel.thumbnail_quality_status === 'needs_video_editing' ? (
-                          <>
-                            <Film className="h-3.5 w-3.5 text-purple-400" />
-                            <span className="text-purple-300">Needs Video Editing / Reels</span>
-                          </>
-                        ) : (
-                          <>
-                            <CheckSquare className="h-3.5 w-3.5 text-emerald-400" />
-                            <span className="text-emerald-300">Optimized Visuals</span>
-                          </>
-                        )}
-                      </span>
-                      {channel.view_to_sub_ratio && (
-                        <span className="font-mono text-slate-300">
-                          {channel.view_to_sub_ratio}% CTR
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[11px] text-slate-300 font-sans">
-                      {channel.opportunity_reason}
-                    </p>
+                <div className="space-y-1.5 text-xs text-zinc-400">
+                  <div className="flex items-center gap-2 truncate">
+                    <Users className="h-3.5 w-3.5 text-zinc-500 shrink-0" />
+                    <span className="truncate font-mono text-zinc-300">{channel.channel_handle || '@channel'}</span>
                   </div>
-                )}
 
-                {/* Recent Video Snapshot Preview */}
-                {channel.recent_video_thumbnail && (
-                  <div className="rounded-xl overflow-hidden border border-slate-800 bg-slate-950">
-                    <div className="relative aspect-video w-full overflow-hidden">
-                      <img
-                        src={channel.recent_video_thumbnail}
-                        alt={channel.recent_video_title || 'Video'}
-                        className="w-full h-full object-cover"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-transparent to-transparent flex items-end p-2">
-                        <span className="text-[10px] text-slate-200 font-medium line-clamp-1">
-                          {channel.recent_video_title}
-                        </span>
-                      </div>
-                    </div>
+                  <div className="flex items-center gap-2">
+                    <Video className="h-3.5 w-3.5 text-zinc-500 shrink-0" />
+                    <span>{formatNumber(channel.video_count)} videos • {formatNumber(channel.view_count)} views</span>
                   </div>
-                )}
 
-                {/* Metrics Stats */}
-                <div className="grid grid-cols-3 gap-2 p-2 rounded-xl bg-slate-950 border border-slate-800 text-center">
-                  <div>
-                    <div className="text-[10px] text-slate-500">Subscribers</div>
-                    <div className="text-xs font-bold text-slate-200 font-mono">
-                      {formatNumber(channel.subscriber_count)}
+                  {channel.contact_email && (
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-3.5 w-3.5 text-zinc-500 shrink-0" />
+                      <span className="font-mono text-zinc-300">{channel.contact_email}</span>
                     </div>
-                  </div>
-                  <div>
-                    <div className="text-[10px] text-slate-500">Videos</div>
-                    <div className="text-xs font-bold text-slate-200 font-mono">
-                      {channel.video_count.toLocaleString()}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-[10px] text-slate-500">Total Views</div>
-                    <div className="text-xs font-bold text-slate-200 font-mono">
-                      {formatNumber(channel.view_count)}
-                    </div>
-                  </div>
+                  )}
                 </div>
               </div>
 
-              {/* Card Footer with Quick Push to Campaign button */}
-              <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-xs">
-                {channel.contact_email ? (
-                  <div className="flex items-center gap-1.5 text-emerald-400 font-mono text-[11px] truncate max-w-[150px]">
-                    <Mail className="h-3 w-3 shrink-0" />
-                    <span className="truncate">{channel.contact_email}</span>
-                  </div>
-                ) : (
-                  <span className="text-[11px] text-slate-500">No public email</span>
-                )}
+              <div className="mt-4 pt-3 border-t border-zinc-800/80 flex items-center justify-between gap-2">
+                <a
+                  href={channel.website}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-xs text-zinc-400 hover:text-white flex items-center gap-1"
+                >
+                  <span>Open Channel</span>
+                  <ExternalLink className="h-3 w-3" />
+                </a>
 
-                <div className="flex items-center gap-1.5">
-                  <a
-                    href={channel.website}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-white px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 transition-colors"
-                  >
-                    <span>Channel</span>
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handlePushSingle(channel);
-                    }}
-                    className="px-2.5 py-1 rounded bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-[11px] font-bold flex items-center gap-1 transition-colors"
-                    title="Send this creator to Bulk Campaign"
-                  >
-                    <Send className="h-3 w-3" />
-                    <span>Push</span>
-                  </button>
-                </div>
+                <span className="text-[11px] text-zinc-500 font-medium">
+                  {channel.category || 'Creator'}
+                </span>
               </div>
             </div>
           ))}
         </div>
-      ) : !loading ? (
-        <div className="p-12 text-center rounded-2xl bg-slate-900/40 border border-dashed border-slate-800 space-y-3">
-          <Youtube className="h-10 w-10 text-slate-600 mx-auto" />
-          <h4 className="text-sm font-semibold text-slate-300">No YouTube results yet</h4>
-          <p className="text-xs text-slate-500 max-w-md mx-auto">
-            Search YouTube creators with the <strong>Subscriber Range</strong> and <strong>Visual Quality Audit Filter</strong> above.
-          </p>
-        </div>
-      ) : null}
+      ) : (
+        !loading && (
+          <div className="p-12 rounded-2xl bg-[#121215] border border-dashed border-zinc-800 text-center space-y-3">
+            <div className="p-3.5 rounded-2xl bg-zinc-900 text-zinc-400 w-fit mx-auto border border-zinc-800">
+              <Youtube className="h-6 w-6 text-zinc-400" />
+            </div>
+            <h3 className="text-base font-bold text-white">No YouTube Creators found</h3>
+            <p className="text-xs text-zinc-400 max-w-md mx-auto leading-relaxed">
+              Enter a search niche above to discover YouTube channels, analyze view metrics, and build your sponsorship pipeline.
+            </p>
+          </div>
+        )
+      )}
     </div>
   );
 };

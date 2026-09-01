@@ -3,7 +3,6 @@ import { NavTab } from './Sidebar';
 import {
   RotateCcw,
   Sparkles,
-  Zap,
   ShieldCheck,
   AlertTriangle,
   Octagon,
@@ -34,15 +33,19 @@ export const Navbar: React.FC<NavbarProps> = ({
   const getTitle = () => {
     const titles: Record<NavTab, { title: string; subtitle: string }> = {
       dashboard: {
-        title: 'Kropix Outreach Command Center',
-        subtitle: 'Real-time metrics, conversion funnel & pipeline analytics',
+        title: 'Command Center & Analytics',
+        subtitle: 'Real-time performance metrics, conversion funnel & pipeline analytics',
+      },
+      admin_panel: {
+        title: 'Super Admin Console & Licensing',
+        subtitle: 'Client license key generator, system telemetry & Supabase cloud sync',
       },
       inbox: {
         title: 'Live Inbound Replies & Chats',
-        subtitle: 'Real-time prospect responses from WhatsApp and Email with tone matching & quick actions',
+        subtitle: 'Real-time prospect responses from WhatsApp and Email with tone matching',
       },
       bulk_campaign: {
-        title: 'Bulk Campaign & Mass Dispatch Hub',
+        title: 'Bulk Campaign & Mass Dispatch',
         subtitle: 'Compose custom messages & dispatch sequentially via Email or Safe WhatsApp Automation',
       },
       places_search: {
@@ -50,28 +53,28 @@ export const Navbar: React.FC<NavbarProps> = ({
         subtitle: 'Find local businesses, clinics, agencies & services via Places API',
       },
       places_crm: {
-        title: 'Saved Local Business CRM',
+        title: 'Saved Business CRM',
         subtitle: 'Manage local business pipelines, ratings, interaction notes & conversion status',
       },
       places_queue: {
-        title: 'Business Outreach & Pitch Review',
+        title: 'Business Outreach & Pitches',
         subtitle: 'Review & approve AI generated messages for businesses before dispatch',
       },
       youtube_search: {
-        title: 'YouTube Creator & Channel Discovery',
-        subtitle: 'Discover YouTube channels by niche, subscriber count & view metrics via YouTube Data API',
+        title: 'YouTube Creator Discovery',
+        subtitle: 'Discover YouTube channels by niche, subscriber count & view metrics',
       },
       youtube_crm: {
-        title: 'Saved YouTube Creators CRM',
-        subtitle: 'Manage content creator deals, subscriber stats, notes & collaboration pipeline',
+        title: 'Creator CRM',
+        subtitle: 'Manage content creator deals, subscriber stats & collaboration pipeline',
       },
       youtube_queue: {
-        title: 'Creator Outreach & Pitch Queue',
+        title: 'Creator Outreach Queue',
         subtitle: 'Review & approve sponsorship/collaboration pitches for content creators',
       },
       settings: {
-        title: 'Integrations & Configuration',
-        subtitle: 'Manage API keys for Google Places, YouTube, Gemini, Claude, and system preferences',
+        title: 'Integrations & Settings',
+        subtitle: 'Manage API keys for Google Places, YouTube, Gemini, Claude, and system config',
       },
     };
 
@@ -107,19 +110,19 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   return (
-    <header className="h-16 px-6 bg-[#0F172A] border-b border-slate-800 flex items-center justify-between gap-4 select-none shrink-0 sticky top-0 z-40">
+    <header className="h-16 px-6 bg-[#09090b] border-b border-zinc-800/80 flex items-center justify-between gap-4 select-none shrink-0 sticky top-0 z-40">
       {/* Title info */}
       <div className="flex items-center gap-3">
         <div>
-          <h1 className="text-base font-bold text-slate-100 flex items-center gap-2">
+          <h1 className="text-base font-bold text-white flex items-center gap-2">
             <span>{title}</span>
             {mockMode && (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-zinc-800 text-zinc-300 border border-zinc-700">
                 Demo Mode
               </span>
             )}
           </h1>
-          <p className="text-[11px] text-slate-400 truncate max-w-lg hidden sm:block">
+          <p className="text-[11px] text-zinc-400 truncate max-w-lg hidden sm:block">
             {subtitle}
           </p>
         </div>
@@ -127,40 +130,49 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* Right Controls */}
       <div className="flex items-center gap-3">
-        {/* Fact-Checking Guard Status Badge */}
-        <div className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900 border border-slate-700 text-[11px] text-slate-300 font-medium">
-          <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
-          <span>Fact-Checking Guard Active</span>
+        {/* Guard Status Badge */}
+        <div className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-900 border border-zinc-800 text-[11px] text-zinc-300 font-medium">
+          <ShieldCheck className="h-3.5 w-3.5 text-white" />
+          <span>AI Guard Active</span>
         </div>
 
-        {/* 🚨 EMERGENCY KILL SWITCH BUTTON */}
+        {/* EMERGENCY KILL SWITCH BUTTON */}
         <button
           onClick={handleKillSwitchClick}
           disabled={togglingKillSwitch}
-          className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shadow-md ${
+          className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shadow-sm ${
             killSwitchActive
-              ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-600/40 animate-pulse ring-2 ring-rose-500/60'
-              : 'bg-slate-800 hover:bg-rose-600/20 text-slate-300 hover:text-rose-300 border border-slate-700'
+              ? 'bg-white text-zinc-950 font-black border border-white animate-pulse hover:bg-zinc-200'
+              : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 hover:border-zinc-700'
           }`}
           title={
             killSwitchActive
-              ? 'Click to unlock safety lock & resume operations'
-              : '1-Click Kill Switch: Instantly halt all auto-sending & batch queues'
+              ? 'Kill Switch ACTIVE — Click to Deactivate & Resume Outgoing Messaging'
+              : 'Emergency Kill Switch — Click to instantly halt all outgoing campaigns'
           }
         >
-          <Octagon className={`h-3.5 w-3.5 ${killSwitchActive ? 'fill-white text-rose-600' : 'text-rose-400'}`} />
-          <span>{killSwitchActive ? '🚨 KILL SWITCH: HALTED' : 'Kill Switch'}</span>
+          {killSwitchActive ? (
+            <>
+              <Octagon className="h-3.5 w-3.5 fill-zinc-950" />
+              <span>KILL SWITCH ACTIVE (FROZEN)</span>
+            </>
+          ) : (
+            <>
+              <AlertTriangle className="h-3.5 w-3.5 text-zinc-400" />
+              <span>Emergency Stop</span>
+            </>
+          )}
         </button>
 
-        {/* Refresh button */}
+        {/* Sync / Refresh Button */}
         <button
           onClick={onRefresh}
           disabled={isRefreshing}
-          className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs flex items-center gap-1.5 border border-slate-700 transition-colors shadow-sm"
-          title="Refresh metrics & queues"
+          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white hover:bg-zinc-200 text-zinc-950 text-xs font-bold transition-all disabled:opacity-50 shadow-sm"
+          title="Refresh real-time pipeline metrics"
         >
-          <RotateCcw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin text-indigo-400' : ''}`} />
-          <span className="hidden md:inline">Refresh</span>
+          <RotateCcw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+          <span className="hidden sm:inline">{isRefreshing ? 'Syncing...' : 'Sync'}</span>
         </button>
       </div>
     </header>

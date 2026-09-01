@@ -17,11 +17,6 @@ import {
   Instagram,
   Send,
   Building2,
-  Code,
-  Video,
-  Palette,
-  TrendingUp,
-  Bot,
   Zap,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
@@ -31,10 +26,11 @@ import { WorldMapRadiusPicker } from './WorldMapRadiusPicker';
 interface PlacesSearchProps {
   onLeadsSaved: () => void;
   onOpenCampaign?: () => void;
+  onOpenSettings?: () => void;
 }
 
-export const PlacesSearch: React.FC<PlacesSearchProps> = ({ onLeadsSaved, onOpenCampaign }) => {
-  const [category, setCategory] = useState('Travel Agencies');
+export const PlacesSearch: React.FC<PlacesSearchProps> = ({ onLeadsSaved, onOpenCampaign, onOpenSettings }) => {
+  const [category, setCategory] = useState('Dental Clinics');
   const [location, setLocation] = useState('Mumbai, India');
   const [radius, setRadius] = useState<number>(10000);
   const [websiteFilter, setWebsiteFilter] = useState<'all' | 'no_website' | 'has_website'>('all');
@@ -72,7 +68,6 @@ export const PlacesSearch: React.FC<PlacesSearchProps> = ({ onLeadsSaved, onOpen
         latitude: selectedCoords.lat,
         longitude: selectedCoords.lng,
       });
-      // Start with unchecked so user selects specific leads
       setResults(data.leads.map((l) => ({ ...l, selected: false })));
       setIsMock(data.isMock);
       if (data.message) {
@@ -104,7 +99,7 @@ export const PlacesSearch: React.FC<PlacesSearchProps> = ({ onLeadsSaved, onOpen
     setResults(
       results.map((r, i) => {
         if (i === index) {
-          if (r.already_contacted) return r; // Cannot select already contacted leads
+          if (r.already_contacted) return r;
           return { ...r, selected: !r.selected };
         }
         return r;
@@ -198,15 +193,15 @@ export const PlacesSearch: React.FC<PlacesSearchProps> = ({ onLeadsSaved, onOpen
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       {/* Search Form */}
-      <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-md space-y-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+      <div className="p-6 rounded-2xl bg-[#121215] border border-zinc-800 space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-zinc-800">
           <div>
-            <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
-              <MapPin className="h-5 w-5 text-sky-400" />
+            <h2 className="text-base font-bold text-white flex items-center gap-2">
+              <MapPin className="h-5 w-5 text-white" />
               <span>Google Maps Business Lead Discovery</span>
             </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Find local clinics, restaurants, agencies & gyms. Filter by <strong>🔴 No Website</strong> and view exact locations directly on Google Maps.
+            <p className="text-xs text-zinc-400 mt-0.5">
+              Find local clinics, restaurants, agencies & gyms. Filter by website availability and view exact locations directly on Google Maps.
             </p>
           </div>
 
@@ -214,18 +209,18 @@ export const PlacesSearch: React.FC<PlacesSearchProps> = ({ onLeadsSaved, onOpen
             <button
               type="button"
               onClick={() => setShowWorldMap((prev) => !prev)}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all shadow ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all ${
                 showWorldMap
-                  ? 'bg-sky-600 text-white border-sky-400 shadow-sky-600/30'
-                  : 'bg-slate-800 hover:bg-slate-700 text-sky-300 border-sky-500/30'
+                  ? 'bg-white text-zinc-950 border-white'
+                  : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border-zinc-700'
               }`}
             >
               <Globe className="h-3.5 w-3.5" />
-              <span>{showWorldMap ? 'Close Map ▲' : '🗺️ Global Radius Map'}</span>
+              <span>{showWorldMap ? 'Close Map ▲' : 'Global Radius Map'}</span>
             </button>
 
-            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-sky-500/10 text-sky-300 border border-sky-500/20">
-              <Building2 className="h-3.5 w-3.5" />
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-zinc-900 text-zinc-300 border border-zinc-800">
+              <Building2 className="h-3.5 w-3.5 text-zinc-400" />
               <span>Local Business Pipeline</span>
             </div>
           </div>
@@ -255,8 +250,8 @@ export const PlacesSearch: React.FC<PlacesSearchProps> = ({ onLeadsSaved, onOpen
           <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
             {/* Category / Niche */}
             <div className="md:col-span-5 space-y-1.5">
-              <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                <Search className="h-3.5 w-3.5 text-sky-400" />
+              <label className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
+                <Search className="h-3.5 w-3.5 text-zinc-400" />
                 <span>Business Niche / Category</span>
               </label>
               <input
@@ -264,15 +259,15 @@ export const PlacesSearch: React.FC<PlacesSearchProps> = ({ onLeadsSaved, onOpen
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
                 placeholder="e.g. Dental Clinics, Italian Restaurants, Fitness Gyms"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-xs text-slate-100 placeholder-slate-500 transition-all font-sans"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-950 border border-zinc-800 focus:border-white focus:ring-1 focus:ring-white text-xs text-white placeholder-zinc-500 transition-all font-sans"
                 required
               />
             </div>
 
             {/* City / Location */}
             <div className="md:col-span-4 space-y-1.5">
-              <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                <MapPin className="h-3.5 w-3.5 text-sky-400" />
+              <label className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
+                <MapPin className="h-3.5 w-3.5 text-zinc-400" />
                 <span>Target Location / City</span>
               </label>
               <input
@@ -280,53 +275,67 @@ export const PlacesSearch: React.FC<PlacesSearchProps> = ({ onLeadsSaved, onOpen
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
                 placeholder="e.g. Austin, TX or Mumbai, India"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 text-xs text-slate-100 placeholder-slate-500 transition-all font-sans"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-950 border border-zinc-800 focus:border-white focus:ring-1 focus:ring-white text-xs text-white placeholder-zinc-500 transition-all font-sans"
                 required
               />
             </div>
 
             {/* Website Presence Filter */}
             <div className="md:col-span-3 space-y-1.5">
-              <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                <Globe className="h-3.5 w-3.5 text-sky-400" />
+              <label className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
+                <Globe className="h-3.5 w-3.5 text-zinc-400" />
                 <span>Website Filter</span>
               </label>
               <select
                 value={websiteFilter}
                 onChange={(e) => setWebsiteFilter(e.target.value as any)}
-                className="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-300 focus:border-sky-500"
+                className="w-full px-3 py-2.5 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-zinc-300 focus:border-white"
               >
                 <option value="all">All Businesses</option>
-                <option value="no_website">🔴 No Website Only (High Intent)</option>
-                <option value="has_website">🟢 Has Website (Redesign/Ads)</option>
+                <option value="no_website">No Website Only (High Intent)</option>
+                <option value="has_website">Has Website (Redesign/Ads)</option>
               </select>
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+          {/* Quick Presets / Top Niches Row */}
+          <div className="space-y-2 pt-2 border-t border-zinc-800/60">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-zinc-400 font-semibold flex items-center gap-1.5">
+                <span>🎯 Top Recommended Niches:</span>
+              </span>
+              {category && (
+                <button
+                  type="button"
+                  onClick={() => setCategory('')}
+                  className="px-2.5 py-0.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white text-[11px] font-semibold border border-zinc-800 transition-colors"
+                >
+                  Clear Selection
+                </button>
+              )}
+            </div>
+
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[11px] text-slate-400 font-semibold">Top Niches (Multi-Select):</span>
               {[
-                '✈️ Travel Agencies',
-                '🦷 Dental Clinics',
-                '🏢 Real Estate Builders',
-                '🍽️ Restaurants & Cafes',
-                '🏋️ Fitness Gyms',
-                '💇 Salons & Spas',
-                '🏡 Interior Designers',
-                '📸 Wedding Photographers',
-                '🎓 Coaching Institutes',
-                '💼 CA & Tax Consultants',
-                '🚗 Car Detailing',
-                '👗 Fashion Boutiques',
-                '✨ Event Planners',
-                '🏥 Hospitals & Clinics',
-                '🐶 Pet Clinics',
-                '🧹 Home Deep Cleaning',
+                'Travel Agencies',
+                'Dental Clinics',
+                'Real Estate Builders',
+                'Restaurants & Cafes',
+                'Fitness Gyms',
+                'Salons & Spas',
+                'Interior Designers',
+                'Wedding Photographers',
+                'Coaching Institutes',
+                'CA & Tax Consultants',
+                'Car Detailing',
+                'Fashion Boutiques',
+                'Event Planners',
+                'Hospitals & Clinics',
+                'Pet Clinics',
+                'Home Deep Cleaning',
               ].map((tag) => {
-                const cleanTag = tag.replace(/^[^\s]+\s/, '');
                 const currentNiches = category.split(',').map((c) => c.trim().toLowerCase());
-                const isSelected = currentNiches.includes(cleanTag.toLowerCase());
+                const isSelected = currentNiches.includes(tag.toLowerCase());
 
                 return (
                   <button
@@ -335,42 +344,40 @@ export const PlacesSearch: React.FC<PlacesSearchProps> = ({ onLeadsSaved, onOpen
                     onClick={() => {
                       const list = category.split(',').map((c) => c.trim()).filter(Boolean);
                       if (isSelected) {
-                        const next = list.filter((c) => c.toLowerCase() !== cleanTag.toLowerCase());
+                        const next = list.filter((c) => c.toLowerCase() !== tag.toLowerCase());
                         setCategory(next.join(', '));
                       } else {
-                        setCategory([...list, cleanTag].join(', '));
+                        setCategory([...list, tag].join(', '));
                       }
                     }}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] transition-all border font-medium flex items-center gap-1 ${
+                    className={`px-3 py-1.5 rounded-xl text-xs transition-all border font-medium flex items-center gap-1.5 ${
                       isSelected
-                        ? 'bg-sky-500/20 border-sky-500 text-sky-300 shadow-sm shadow-sky-500/20 font-bold'
-                        : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700/60'
+                        ? 'bg-white border-white text-zinc-950 font-bold shadow-sm'
+                        : 'bg-zinc-900/80 hover:bg-zinc-800 text-zinc-400 hover:text-white border-zinc-800'
                     }`}
                   >
                     <span>{tag}</span>
-                    {isSelected && <span className="text-[10px] text-sky-400">✓</span>}
+                    {isSelected && <span className="text-[11px] text-zinc-950 font-bold">✓</span>}
                   </button>
                 );
               })}
+            </div>
+          </div>
 
-              {category && (
-                <button
-                  type="button"
-                  onClick={() => setCategory('')}
-                  className="px-2 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-[10px] font-semibold border border-rose-500/20 transition-colors"
-                >
-                  Clear All
-                </button>
-              )}
+          {/* Form Action Footer */}
+          <div className="pt-4 border-t border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-xs text-zinc-400">
+              <span className="w-2 h-2 rounded-full bg-white" />
+              <span>Direct Places API extraction with phone numbers, addresses & website checks</span>
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs shadow-lg shadow-sky-600/30 transition-all disabled:opacity-50"
+              className="flex items-center justify-center gap-2.5 px-7 py-3 rounded-xl bg-white hover:bg-zinc-200 text-zinc-950 font-bold text-xs shadow-md transition-all disabled:opacity-50 whitespace-nowrap shrink-0 cursor-pointer"
             >
-              <Search className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-              <span>{loading ? 'Searching Google Maps...' : 'Find Business Leads'}</span>
+              <Search className={`h-4 w-4 text-zinc-950 ${loading ? 'animate-spin' : ''}`} />
+              <span>{loading ? 'Searching Google Maps...' : 'Find Business Leads ➔'}</span>
             </button>
           </div>
         </form>
@@ -378,41 +385,53 @@ export const PlacesSearch: React.FC<PlacesSearchProps> = ({ onLeadsSaved, onOpen
 
       {/* Notice / Messages */}
       {message && (
-        <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-center gap-2.5">
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          <span>{message}</span>
+        <div className="p-3.5 rounded-xl bg-zinc-900 border border-zinc-750 text-white text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <AlertCircle className="h-4 w-4 shrink-0 text-white" />
+            <span>{message}</span>
+          </div>
+          {isMock && onOpenSettings && (
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-semibold border border-zinc-700 transition-colors shrink-0"
+            >
+              <span>Add API Key in Settings</span>
+            </button>
+          )}
         </div>
       )}
 
       {saveSuccessMsg && (
-        <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs flex items-center gap-2.5">
-          <BookmarkCheck className="h-4 w-4 shrink-0" />
+        <div className="p-3.5 rounded-xl bg-zinc-900 border border-zinc-700 text-white text-xs flex items-center gap-2.5">
+          <BookmarkCheck className="h-4 w-4 shrink-0 text-white" />
           <span>{saveSuccessMsg}</span>
         </div>
       )}
 
       {/* Results Header & Batch Actions */}
       {results.length > 0 && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-slate-900 border border-slate-800">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-[#121215] border border-zinc-800">
           <div className="flex items-center gap-3">
             <button
               onClick={toggleSelectAll}
-              className="flex items-center gap-2 text-xs font-semibold text-slate-300 hover:text-white"
+              className="flex items-center gap-2 text-xs font-semibold text-zinc-300 hover:text-white"
             >
               {results.every((r) => r.selected) ? (
-                <CheckSquare className="h-4 w-4 text-sky-400" />
+                <CheckSquare className="h-4 w-4 text-white" />
               ) : (
-                <Square className="h-4 w-4 text-slate-500" />
+                <Square className="h-4 w-4 text-zinc-500" />
               )}
               <span>Select All ({results.length})</span>
             </button>
-            <span className="text-xs text-slate-600">|</span>
-            <span className="text-xs text-sky-400 font-bold font-mono">
+            <span className="text-xs text-zinc-700">|</span>
+            <span className="text-xs text-white font-bold font-mono">
               {selectedCount} Selected
             </span>
             {noWebsiteCount > 0 && (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                🔴 {noWebsiteCount} No Website
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                <span>{noWebsiteCount} No Website</span>
               </span>
             )}
 
@@ -422,236 +441,146 @@ export const PlacesSearch: React.FC<PlacesSearchProps> = ({ onLeadsSaved, onOpen
                 onClick={() => setHideContacted((prev) => !prev)}
                 className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold border transition-colors ${
                   hideContacted
-                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm'
-                    : 'bg-slate-800 text-slate-400 border-slate-700'
+                    ? 'bg-zinc-800 text-white border-zinc-700'
+                    : 'bg-zinc-900 text-zinc-400 border-zinc-800'
                 }`}
               >
-                <span>🛡️ {hideContacted ? 'Contacted Hidden' : 'Showing Contacted'} ({contactedCount})</span>
+                <span>{hideContacted ? 'Contacted Hidden' : 'Showing Contacted'} ({contactedCount})</span>
               </button>
             )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {/* Service Target Angle */}
-            <div className="flex items-center gap-1.5">
-              <select
-                value={selectedService}
-                onChange={(e) => setSelectedService(e.target.value as OfferedService)}
-                className="px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 text-xs focus:border-sky-500 font-semibold"
-              >
-                <option value="whatsapp_ai_agent">🤖 WhatsApp AI Agent & 24/7 Bot</option>
-                <option value="website_design">🌐 Web Design / Redesign</option>
-                <option value="all_in_one_bundle">🔥 All-in-One Growth Bundle (Web + Bot + SEO)</option>
-                <option value="ai_automation">⚡ AI Automation & Customer Assistant</option>
-                <option value="content_creation_reels">🎬 Short Reels / Video Promo</option>
-                <option value="gmb_local_seo">📈 Google Maps Local SEO</option>
-                <option value="branding_logo">🎨 Visual Branding / Logo</option>
-                <option value="paid_ads">🚀 Meta & Google Paid Ads</option>
-                <option value="social_media_management">📱 Social Media Management</option>
-              </select>
-            </div>
-
             <button
               onClick={() => handleSave(false)}
-              disabled={selectedCount === 0 || saving}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-all disabled:opacity-40"
+              disabled={saving || selectedCount === 0}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-200 text-xs font-semibold border border-zinc-750 transition-all disabled:opacity-40"
             >
-              <BookmarkCheck className="h-3.5 w-3.5 text-sky-400" />
-              <span>Save ({selectedCount}) to CRM Only</span>
+              <BookmarkCheck className="h-3.5 w-3.5" />
+              <span>Save ({selectedCount}) to CRM</span>
             </button>
 
             <button
               onClick={() => handleSave(true)}
-              disabled={selectedCount === 0 || saving}
-              className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/30 transition-all disabled:opacity-40"
+              disabled={saving || selectedCount === 0}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white hover:bg-zinc-200 text-zinc-950 text-xs font-bold shadow transition-all disabled:opacity-40"
             >
               <Send className="h-3.5 w-3.5" />
-              <span>Push Selected ({selectedCount}) to Bulk Campaign 🚀</span>
+              <span>Add ({selectedCount}) to Dispatch Queue ➔</span>
             </button>
           </div>
         </div>
       )}
 
-      {/* Results Table */}
+      {/* Results Grid / List */}
       {visibleResults.length > 0 ? (
-        <div className="overflow-hidden rounded-2xl bg-slate-900 border border-slate-800 shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-950 text-slate-400 border-b border-slate-800 font-semibold">
-                <tr>
-                  <th className="py-3 px-3.5 w-10 text-center">
-                    <input
-                      type="checkbox"
-                      checked={selectedCount === uncontactedCount && uncontactedCount > 0}
-                      onChange={toggleSelectAll}
-                      className="rounded border-slate-700 bg-slate-950 text-sky-500 focus:ring-0 cursor-pointer"
-                    />
-                  </th>
-                  <th className="py-3 px-4">Business Name</th>
-                  <th className="py-3 px-4">Website Opportunity</th>
-                  <th className="py-3 px-4">Instagram</th>
-                  <th className="py-3 px-4">Rating & Reviews</th>
-                  <th className="py-3 px-4">Phone Number</th>
-                  <th className="py-3 px-4">Location & Maps Link</th>
-                  <th className="py-3 px-4 text-right">Quick Push</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60">
-                {visibleResults.map((place, idx) => (
-                  <tr
-                    key={idx}
-                    onClick={() => toggleSelect(idx)}
-                    className={`transition-colors cursor-pointer ${
-                      place.already_contacted
-                        ? 'opacity-50 bg-slate-950/40 cursor-not-allowed'
-                        : place.selected
-                        ? 'bg-sky-950/20 hover:bg-slate-800/40'
-                        : 'hover:bg-slate-800/40'
-                    }`}
-                  >
-                    <td
-                      className="py-3 px-3.5 text-center"
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {visibleResults.map((place, idx) => (
+            <div
+              key={place.external_id || idx}
+              onClick={() => toggleSelect(idx)}
+              className={`p-4 rounded-2xl border transition-all cursor-pointer relative flex flex-col justify-between ${
+                place.selected
+                  ? 'bg-zinc-850 border-white text-white shadow-md'
+                  : 'bg-[#121215] border-zinc-800 hover:border-zinc-700'
+              } ${place.already_contacted ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <div className="space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <button
+                      type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         toggleSelect(idx);
                       }}
+                      className="text-zinc-400 hover:text-white shrink-0"
                     >
-                      <input
-                        type="checkbox"
-                        checked={Boolean(place.selected && !place.already_contacted)}
-                        disabled={Boolean(place.already_contacted)}
-                        onChange={() => toggleSelect(idx)}
-                        className="rounded border-slate-700 bg-slate-950 text-sky-500 focus:ring-0 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                      />
-                    </td>
-
-                    <td className="py-3 px-4">
-                      <div className="font-bold text-slate-100 flex items-center gap-1.5 flex-wrap">
-                        <span>{place.name}</span>
-                        {place.already_contacted && (
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
-                            🚫 Already Contacted
-                          </span>
-                        )}
-                        {!place.has_website && (
-                          <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" title="No Website" />
-                        )}
-                      </div>
-                      <div className="text-[11px] text-slate-400">{place.category}</div>
-                    </td>
-
-                    <td className="py-3 px-4">
-                      {place.has_website && place.website ? (
-                        <div className="space-y-0.5">
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                            <Globe className="h-2.5 w-2.5" /> Has Website
-                          </span>
-                          <div>
-                            <a
-                              href={place.website}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              className="text-sky-400 hover:underline truncate max-w-[130px] block text-[11px]"
-                            >
-                              {place.website.replace(/^https?:\/\//, '')}
-                            </a>
-                          </div>
-                        </div>
+                      {place.selected ? (
+                        <CheckSquare className="h-4 w-4 text-white" />
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                          🔴 NO WEBSITE (Hot Lead)
-                        </span>
+                        <Square className="h-4 w-4 text-zinc-600" />
                       )}
-                    </td>
+                    </button>
+                    <h3 className="text-sm font-bold text-white truncate">{place.name}</h3>
+                  </div>
 
-                    <td className="py-3 px-4">
-                      {place.instagram_handle ? (
+                  {place.rating && (
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-zinc-800 text-zinc-200 border border-zinc-700 shrink-0">
+                      ★ {place.rating} ({place.user_ratings_total || 0})
+                    </span>
+                  )}
+                </div>
+
+                <div className="space-y-1.5 text-xs text-zinc-400">
+                  <div className="flex items-center gap-2 truncate">
+                    <MapPin className="h-3.5 w-3.5 text-zinc-500 shrink-0" />
+                    <span className="truncate">{place.address || 'Address not listed'}</span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Phone className="h-3.5 w-3.5 text-zinc-500 shrink-0" />
+                    <span className="font-mono text-zinc-300">{place.phone || 'No phone listed'}</span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {place.website ? (
+                      <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] font-medium max-w-full">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                        <Globe className="h-3 w-3 text-emerald-400 shrink-0" />
                         <a
-                          href={`https://instagram.com/${place.instagram_handle.replace('@', '')}`}
+                          href={place.website}
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
-                          className="inline-flex items-center gap-1 text-[11px] font-mono text-purple-400 hover:text-purple-300 hover:underline"
+                          className="hover:underline truncate text-emerald-300 font-mono text-[11px]"
                         >
-                          <Instagram className="h-3 w-3 shrink-0" />
-                          <span>{place.instagram_handle}</span>
+                          {place.website.replace(/^https?:\/\/(www\.)?/, '').replace(/\/.*$/, '')}
                         </a>
-                      ) : (
-                        <span className="text-slate-500">—</span>
-                      )}
-                    </td>
-
-                    <td className="py-3 px-4">
-                      {place.rating ? (
-                        <div className="flex items-center gap-1">
-                          <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-                          <span className="font-bold text-slate-200">{place.rating}</span>
-                          <span className="text-slate-500">({place.user_ratings_total || 0})</span>
-                        </div>
-                      ) : (
-                        <span className="text-slate-500">No ratings</span>
-                      )}
-                    </td>
-
-                    <td className="py-3 px-4">
-                      {place.phone ? (
-                        <div className="flex items-center gap-1.5 text-slate-300 font-mono">
-                          <Phone className="h-3 w-3 text-emerald-400" />
-                          <span>{place.phone}</span>
-                        </div>
-                      ) : (
-                        <span className="text-slate-500">N/A</span>
-                      )}
-                    </td>
-
-                    {/* Location with Direct 1-Click Google Maps Link */}
-                    <td className="py-3 px-4">
-                      <div className="text-slate-300 max-w-xs truncate text-[11px]">
-                        {place.address}
                       </div>
-                      <a
-                        href={place.google_maps_url || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name + ' ' + place.address)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="inline-flex items-center gap-1 text-[10px] font-semibold text-sky-400 hover:text-sky-300 hover:underline mt-0.5"
-                        title="View exact location on Google Maps"
-                      >
-                        <MapPin className="h-3 w-3 text-sky-400 shrink-0" />
-                        <span>View on Google Maps</span>
-                        <ExternalLink className="h-2.5 w-2.5 shrink-0" />
-                      </a>
-                    </td>
+                    ) : (
+                      <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-rose-500/10 border border-rose-500/20 text-rose-400 text-[11px] font-semibold">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                        <Globe className="h-3 w-3 text-rose-400 shrink-0" />
+                        <span>No Website</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
 
-                    <td className="py-3 px-4 text-right">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleSaveSingleToCampaign(place);
-                        }}
-                        className="p-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 transition-colors ml-auto flex items-center gap-1 text-[11px] font-bold"
-                        title="Send this lead to Bulk Campaign"
-                      >
-                        <Send className="h-3 w-3" />
-                        <span>Push</span>
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+              <div className="mt-4 pt-3 border-t border-zinc-800/80 flex items-center justify-between gap-2">
+                <span className="text-[11px] text-zinc-500 font-medium truncate">
+                  {place.category || 'Local Business'}
+                </span>
+
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleSaveSingleToCampaign(place);
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-semibold border border-zinc-700 transition-colors shrink-0"
+                >
+                  Send to Queue
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        !loading && (
+          <div className="p-12 rounded-2xl bg-[#121215] border border-dashed border-zinc-800 text-center space-y-3">
+            <div className="p-3.5 rounded-2xl bg-zinc-900 text-zinc-400 w-fit mx-auto border border-zinc-800">
+              <MapPin className="h-6 w-6 text-zinc-400" />
+            </div>
+            <h3 className="text-base font-bold text-white">No Business Leads yet</h3>
+            <p className="text-xs text-zinc-400 max-w-md mx-auto leading-relaxed">
+              Enter a business niche and location above to discover local leads, check website availability, and select specific prospects for your campaign.
+            </p>
           </div>
-        </div>
-      ) : !loading ? (
-        <div className="p-12 text-center rounded-2xl bg-slate-900/40 border border-dashed border-slate-800 space-y-3">
-          <MapPin className="h-10 w-10 text-slate-600 mx-auto" />
-          <h4 className="text-sm font-semibold text-slate-300">No Business Leads yet</h4>
-          <p className="text-xs text-slate-500 max-w-md mx-auto">
-            Enter a business niche and location above to discover local leads, check website availability, and select specific prospects for your campaign.
-          </p>
-        </div>
-      ) : null}
+        )
+      )}
     </div>
   );
 };

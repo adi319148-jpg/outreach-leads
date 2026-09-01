@@ -121,7 +121,7 @@ export async function sendDirectEmail(
       if (lastErrorMsg.toLowerCase().includes('own email address') || lastErrorMsg.toLowerCase().includes('verify a domain')) {
         return {
           success: false,
-          message: `Resend Sandbox Restriction: 'onboarding@resend.dev' can only send emails to your registered email (adi319148@gmail.com). To send cold emails to prospects: Verify a domain at resend.com/domains OR use 1-Click 'Gmail Web ↗' / SMTP.`,
+          message: `Resend Sandbox Restriction: 'onboarding@resend.dev' can only send emails to your own registered Resend email address. To send cold emails to any prospect: Add & verify your custom domain at resend.com/domains OR use direct SMTP / 1-Click 'Gmail Web ↗'.`,
         };
       }
       return { success: false, message: `Resend API Error: ${lastErrorMsg}` };

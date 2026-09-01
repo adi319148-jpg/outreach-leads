@@ -82,6 +82,7 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
   // WhatsApp states & Anti-Ban batch engine
   const [waState, setWaState] = useState<WhatsAppStatusState | null>(null);
   const [waAccounts, setWaAccounts] = useState<WhatsAppAccountState[]>([]);
+  const [selectedWhatsAppSender, setSelectedWhatsAppSender] = useState<string>('all');
   const [minDelay, setMinDelay] = useState<number>(30);
   const [maxDelay, setMaxDelay] = useState<number>(45);
   const [batchProgress, setBatchProgress] = useState<BatchWhatsAppProgress | null>(null);
@@ -294,7 +295,8 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
 
     setBatchStarting(true);
     try {
-      const res = await startWhatsAppBatchCampaign(validLeads, minDelay, maxDelay);
+      const allowedSessionIds = selectedWhatsAppSender === 'all' ? undefined : [selectedWhatsAppSender];
+      const res = await startWhatsAppBatchCampaign(validLeads, minDelay, maxDelay, allowedSessionIds);
       if (res.success) {
         startBatchPolling();
       } else {
@@ -611,26 +613,22 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       {/* Top Action Header */}
-      <div className="p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950/60 border border-slate-700/60 shadow-xl space-y-4">
+      <div className="p-5 rounded-2xl bg-[#121215] border border-zinc-800 space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="inline-flex items-center gap-2 flex-wrap">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                <Send className="h-3.5 w-3.5" />
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-zinc-900 text-zinc-300 border border-zinc-800">
+                <Send className="h-3.5 w-3.5 text-zinc-400" />
                 <span>Bulk Campaign & Multi-Channel Dispatch</span>
               </span>
 
               {isWaConnected && (
                 <span
-                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${
-                    (waState?.sentToday || 0) >= 40
-                      ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                      : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                  }`}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-zinc-900 text-zinc-300 border border-zinc-800"
                 >
-                  <ShieldAlert className="h-3.5 w-3.5" />
+                  <ShieldAlert className="h-3.5 w-3.5 text-zinc-400" />
                   <span>
-                    🛡️ Safety Cap: {waState?.sentToday || 0} / 40 Sent Today
+                    Safety Cap: {waState?.sentToday || 0} / 40 Sent Today
                   </span>
                 </span>
               )}
@@ -638,7 +636,7 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
             <h2 className="text-xl font-bold text-white tracking-tight mt-1">
               Campaign Queue ({leads.length} Leads)
             </h2>
-            <p className="text-xs text-slate-300">
+            <p className="text-xs text-zinc-400">
               Select leads to compose custom messages, launch <strong>Safe WhatsApp Automation (30-45s Delay)</strong>, or dispatch <strong>Direct Cold Emails</strong>.
             </p>
           </div>
@@ -649,16 +647,16 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
                 {contactedCount > 0 && (
                   <button
                     onClick={handleCleanContactedLeads}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-xs font-semibold border border-amber-500/30 transition-colors shadow"
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-semibold border border-zinc-750 transition-colors shadow"
                     title="Remove already messaged/contacted prospects from this queue"
                   >
-                    <span>🧹 Clean Sent ({contactedCount})</span>
+                    <span>Clean Sent ({contactedCount})</span>
                   </button>
                 )}
 
                 <button
                   onClick={handleClearAll}
-                  className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 text-xs font-medium border border-slate-700 transition-colors"
+                  className="px-3 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white text-xs font-medium border border-zinc-800 transition-colors"
                 >
                   Clear Queue
                 </button>
@@ -666,62 +664,72 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
                 <button
                   onClick={handleCopySelectedDrafts}
                   disabled={selectedIds.length === 0}
-                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-all shadow disabled:opacity-40"
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-200 text-xs font-semibold border border-zinc-750 transition-all shadow disabled:opacity-40"
                 >
-                  <Copy className="h-3.5 w-3.5 text-sky-400" />
+                  <Copy className="h-3.5 w-3.5 text-zinc-400" />
                   <span>{copiedBatch ? 'Copied Selected!' : `Copy (${selectedIds.length})`}</span>
                 </button>
 
                 <button
                   onClick={handleBatchOpenInGmail}
                   disabled={selectedIds.length === 0}
-                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-600/30 transition-all disabled:opacity-40"
-                  title="Open pre-filled Gmail Compose windows with 1-click (Zero Setup / Zero API)"
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-200 text-xs font-semibold border border-zinc-750 transition-all disabled:opacity-40"
+                  title="Open pre-filled Gmail Compose windows with 1-click"
                 >
-                  <Mail className="h-3.5 w-3.5" />
-                  <span>Gmail Web ↗ ({selectedIds.length})</span>
+                  <Mail className="h-3.5 w-3.5 text-zinc-400" />
+                  <span>Gmail Web ({selectedIds.length})</span>
                 </button>
 
                 <button
                   onClick={handleStartBatchEmail}
                   disabled={batchEmailStarting || selectedIds.length === 0}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-lg shadow-sky-600/30 transition-all disabled:opacity-40"
-                  title="Send emails automatically in the background via SMTP / Resend"
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold border border-zinc-700 transition-all disabled:opacity-40 shadow"
+                  title="Send emails automatically in the background via SMTP"
                 >
                   <Mail className={`h-3.5 w-3.5 ${batchEmailStarting ? 'animate-spin' : ''}`} />
                   <span>{batchEmailStarting ? 'Auto-Email...' : `Auto-Send (${selectedIds.length})`}</span>
                 </button>
+
+                {/* WhatsApp Account Selector (If multiple connected) */}
+                {waAccounts.filter((a) => a.status === 'connected').length > 1 && (
+                  <select
+                    value={selectedWhatsAppSender}
+                    onChange={(e) => setSelectedWhatsAppSender(e.target.value)}
+                    className="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-750 text-white text-xs font-semibold focus:border-white"
+                  >
+                    <option value="all">
+                      🔄 Smart Round-Robin ({waAccounts.filter((a) => a.status === 'connected').length} WhatsApp Accounts)
+                    </option>
+                    {waAccounts
+                      .filter((a) => a.status === 'connected')
+                      .map((acc) => (
+                        <option key={acc.id} value={acc.id}>
+                          📱 {acc.name} ({acc.userPhone || acc.id})
+                        </option>
+                      ))}
+                  </select>
+                )}
 
                 <button
                   onClick={handleStartWhatsAppAntiBanBatch}
                   disabled={
                     batchStarting ||
                     batchProgress?.isRunning ||
-                    !isWaConnected ||
-                    (waState?.sentToday || 0) >= 40 ||
+                    waAccounts.filter((a) => a.status === 'connected').length === 0 ||
                     selectedIds.length === 0
                   }
-                  className={`flex items-center gap-2 px-5 py-2 rounded-xl text-white text-xs font-bold shadow-lg transition-all ${
-                    (waState?.sentToday || 0) >= 40
-                      ? 'bg-slate-800 text-rose-300 border border-rose-500/40 cursor-not-allowed opacity-90'
-                      : isWaConnected && selectedIds.length > 0
-                      ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-emerald-600/30'
-                      : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed opacity-60'
+                  className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold transition-all shadow ${
+                    waAccounts.some((a) => a.status === 'connected') && selectedIds.length > 0
+                      ? 'bg-white hover:bg-zinc-200 text-zinc-950 font-bold'
+                      : 'bg-zinc-900 text-zinc-600 border border-zinc-800 cursor-not-allowed opacity-60'
                   }`}
-                  title={
-                    (waState?.sentToday || 0) >= 40
-                      ? '40/40 daily safety limit reached on this number to prevent bans. Please link a new WhatsApp account in Settings.'
-                      : undefined
-                  }
                 >
                   <MessageCircle className="h-4 w-4" />
                   <span>
                     {batchProgress?.isRunning
                       ? 'Campaign Running...'
-                      : (waState?.sentToday || 0) >= 40
-                      ? '⚠️ 40/40 Limit Reached (Switch Account)'
-                      : isWaConnected
-                      ? `🚀 Launch WhatsApp (${selectedIds.length})`
+                      : waAccounts.some((a) => a.status === 'connected')
+                      ? `Launch WhatsApp (${selectedIds.length})`
                       : 'Link WhatsApp in Settings'}
                   </span>
                 </button>
@@ -744,51 +752,51 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
 
         {/* Quick Stats Bar */}
         {leads.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-slate-700/60 text-xs">
-            <div className="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center justify-between">
-              <span className="text-slate-400">Total in Queue:</span>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-zinc-800 text-xs">
+            <div className="p-2.5 rounded-xl bg-zinc-950 border border-zinc-800 flex items-center justify-between">
+              <span className="text-zinc-400">Total in Queue:</span>
               <span className="font-bold text-white font-mono">{leads.length}</span>
             </div>
-            <div className="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center justify-between">
-              <span className="text-slate-400">Selected:</span>
-              <span className="font-bold text-sky-400 font-mono">{selectedIds.length} Leads</span>
+            <div className="p-2.5 rounded-xl bg-zinc-950 border border-zinc-800 flex items-center justify-between">
+              <span className="text-zinc-400">Selected:</span>
+              <span className="font-bold text-white font-mono">{selectedIds.length} Leads</span>
             </div>
-            <div className="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center justify-between">
-              <span className="text-slate-400">Messages Ready:</span>
-              <span className="font-bold text-emerald-400 font-mono">{readyPitchesCount} / {leads.length}</span>
+            <div className="p-2.5 rounded-xl bg-zinc-950 border border-zinc-800 flex items-center justify-between">
+              <span className="text-zinc-400">Messages Ready:</span>
+              <span className="font-bold text-white font-mono">{readyPitchesCount} / {leads.length}</span>
             </div>
-            <div className="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center justify-between">
-              <span className="text-slate-400">Sent Progress:</span>
-              <span className="font-bold text-amber-400 font-mono">{contactedCount} / {leads.length}</span>
+            <div className="p-2.5 rounded-xl bg-zinc-950 border border-zinc-800 flex items-center justify-between">
+              <span className="text-zinc-400">Sent Progress:</span>
+              <span className="font-bold text-white font-mono">{contactedCount} / {leads.length}</span>
             </div>
           </div>
         )}
       </div>
 
       {actionSuccessMsg && (
-        <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs flex items-center gap-2 animate-in fade-in">
-          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
+        <div className="p-3.5 rounded-xl bg-zinc-900 border border-zinc-700 text-white text-xs flex items-center gap-2 animate-in fade-in">
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-white" />
           <span>{actionSuccessMsg}</span>
         </div>
       )}
 
       {/* WHATSAPP ANTI-BAN MONITOR (When Running) */}
       {batchProgress?.isRunning && (
-        <div className="p-5 rounded-2xl bg-gradient-to-r from-emerald-950/70 via-slate-900 to-teal-950/70 border border-emerald-500/50 shadow-2xl space-y-4 animate-in fade-in">
+        <div className="p-5 rounded-2xl bg-[#121215] border border-zinc-700 shadow-2xl space-y-4 animate-in fade-in">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="relative p-3 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
+              <div className="relative p-3 rounded-2xl bg-zinc-900 text-white border border-zinc-700">
                 <ShieldCheck className="h-6 w-6" />
-                <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-emerald-400 animate-ping" />
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-white animate-ping" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-bold text-white">WhatsApp Anti-Ban Campaign in Progress</h3>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-mono">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-zinc-800 text-white border border-zinc-700">
                     {batchProgress.currentIndex} / {batchProgress.totalCount} Leads
                   </span>
                 </div>
-                <p className="text-xs text-emerald-300/90 mt-0.5">
+                <p className="text-xs text-zinc-400 mt-0.5">
                   {batchProgress.statusMessage}
                 </p>
               </div>
@@ -796,15 +804,15 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
 
             <div className="flex items-center gap-3">
               {batchProgress.secondsRemaining > 0 && (
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-950/80 border border-emerald-500/30 text-xs text-emerald-400 font-mono">
-                  <Clock className="h-4 w-4 animate-spin text-emerald-400" />
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-zinc-300 font-mono">
+                  <Clock className="h-4 w-4 animate-spin text-white" />
                   <span>Next send in: <strong className="text-white text-sm">{batchProgress.secondsRemaining}s</strong></span>
                 </div>
               )}
 
               <button
                 onClick={handleStopWhatsAppBatch}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-600/30 transition-all"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold border border-zinc-700 shadow transition-all"
               >
                 <Square className="h-3.5 w-3.5 fill-white" />
                 <span>Stop Campaign</span>
@@ -812,9 +820,9 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
             </div>
           </div>
 
-          <div className="w-full h-2 rounded-full bg-slate-950 border border-slate-800 overflow-hidden">
+          <div className="w-full h-1.5 rounded-full bg-zinc-950 border border-zinc-800 overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-500"
+              className="h-full bg-white transition-all duration-500"
               style={{
                 width: `${batchProgress.totalCount > 0 ? (batchProgress.currentIndex / batchProgress.totalCount) * 100 : 0}%`,
               }}
@@ -825,17 +833,17 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
 
       {/* Sequential Stepper Modal / Floating Bar for Email */}
       {stepperIndex !== null && leads[stepperIndex] && (
-        <div className="p-4 rounded-2xl bg-sky-950/40 border border-sky-500/40 shadow-xl flex items-center justify-between gap-4 animate-in fade-in">
+        <div className="p-4 rounded-2xl bg-[#121215] border border-zinc-700 shadow-xl flex items-center justify-between gap-4 animate-in fade-in">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-sky-500/20 text-sky-400 font-bold text-xs">
+            <div className="p-2 rounded-xl bg-zinc-900 text-white font-bold text-xs border border-zinc-800">
               {stepperIndex + 1} / {leads.length}
             </div>
             <div>
               <div className="text-xs font-bold text-white flex items-center gap-2">
                 <span>Dispatching: {leads[stepperIndex].name}</span>
-                <span className="text-slate-400 font-mono text-[11px]">({leads[stepperIndex].contact_email || 'No email'})</span>
+                <span className="text-zinc-400 font-mono text-[11px]">({leads[stepperIndex].contact_email || 'No email'})</span>
               </div>
-              <p className="text-[11px] text-slate-300 truncate max-w-md">
+              <p className="text-[11px] text-zinc-400 truncate max-w-md">
                 {leads[stepperIndex].pitch || 'No message drafted'}
               </p>
             </div>
@@ -844,15 +852,15 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
           <div className="flex items-center gap-2">
             <button
               onClick={() => handleSendSingleEmailDirect(leads[stepperIndex])}
-              className="px-3.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold shadow"
+              className="px-3.5 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-200 text-xs font-semibold border border-zinc-750"
             >
               Re-send Email
             </button>
             <button
               onClick={advanceSequentialMailer}
-              className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/30"
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-white hover:bg-zinc-200 text-zinc-950 text-xs font-bold shadow"
             >
-              <span>{stepperIndex + 1 === leads.length ? 'Finish Campaign 🎉' : 'Next Lead ➔'}</span>
+              <span>{stepperIndex + 1 === leads.length ? 'Finish Campaign' : 'Next Lead ➔'}</span>
               <ArrowRight className="h-3.5 w-3.5" />
             </button>
           </div>
@@ -861,20 +869,20 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
 
       {/* Action Control Strip: Multi-Select Actions & Fast Pitch Generator */}
       {leads.length > 0 && (
-        <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+        <div className="p-4 rounded-2xl bg-[#121215] border border-zinc-800 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-3">
             <button
               onClick={handleSelectAll}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold border border-slate-700 transition-colors"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-200 font-semibold border border-zinc-750 transition-colors"
             >
-              <CheckSquare className="h-3.5 w-3.5 text-sky-400" />
+              <CheckSquare className="h-3.5 w-3.5 text-white" />
               <span>{selectedIds.length === leads.length ? 'Deselect All' : 'Select All Leads'}</span>
             </button>
 
             {selectedIds.length > 0 && (
               <button
                 onClick={handleRemoveSelected}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/20 transition-colors font-medium"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white border border-zinc-800 transition-colors font-medium"
               >
                 <Trash2 className="h-3.5 w-3.5" />
                 <span>Remove ({selectedIds.length})</span>
@@ -888,24 +896,24 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
               <select
                 value={selectedService}
                 onChange={(e) => setSelectedService(e.target.value as OfferedService)}
-                className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 text-xs focus:border-sky-500 font-semibold"
+                className="px-3 py-1.5 rounded-xl bg-zinc-950 border border-zinc-800 text-white text-xs focus:border-white font-semibold"
               >
-                <option value="whatsapp_ai_agent">🤖 WhatsApp AI Agent & 24/7 Bot</option>
-                <option value="website_design">🌐 Web Design / Redesign</option>
-                <option value="all_in_one_bundle">🔥 All-in-One Growth Bundle (Web + Bot + SEO)</option>
-                <option value="ai_automation">⚡ AI Automation & Customer Assistant</option>
-                <option value="content_creation_reels">🎬 Short Reels / Video Promo</option>
-                <option value="gmb_local_seo">📈 Google Maps Local SEO</option>
-                <option value="branding_logo">🎨 Visual Branding / Logo</option>
-                <option value="paid_ads">🚀 Meta & Google Paid Ads</option>
-                <option value="social_media_management">📱 Social Media Management</option>
+                <option value="whatsapp_ai_agent">WhatsApp AI Agent & 24/7 Bot</option>
+                <option value="website_design">Web Design / Redesign</option>
+                <option value="all_in_one_bundle">All-in-One Growth Bundle (Web + Bot + SEO)</option>
+                <option value="ai_automation">AI Automation & Customer Assistant</option>
+                <option value="content_creation_reels">Short Reels / Video Promo</option>
+                <option value="gmb_local_seo">Google Maps Local SEO</option>
+                <option value="branding_logo">Visual Branding / Logo</option>
+                <option value="paid_ads">Meta & Google Paid Ads</option>
+                <option value="social_media_management">Social Media Management</option>
               </select>
             </div>
 
             <button
               onClick={handleBatchAIGenerateForSelected}
               disabled={generatingBatch || selectedIds.length === 0}
-              className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white font-bold text-xs shadow-md shadow-sky-600/20 transition-all disabled:opacity-40"
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-white hover:bg-zinc-200 text-zinc-950 font-bold text-xs shadow transition-all disabled:opacity-40"
             >
               <Sparkles className={`h-3.5 w-3.5 ${generatingBatch ? 'animate-spin' : ''}`} />
               <span>{generatingBatch ? 'Drafting...' : `AI Generate for Selected (${selectedIds.length})`}</span>
@@ -919,10 +927,10 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* Left Column: Clean, Compact Lead Table */}
           <div className={`${activeEditingLead ? 'lg:col-span-7' : 'lg:col-span-12'} transition-all space-y-3`}>
-            <div className="overflow-hidden rounded-2xl bg-slate-900 border border-slate-800 shadow-md">
+            <div className="overflow-hidden rounded-2xl bg-[#121215] border border-zinc-800 shadow-md">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-950 text-slate-400 border-b border-slate-800 font-semibold">
+                  <thead className="bg-zinc-950 text-zinc-400 border-b border-zinc-800 font-semibold">
                     <tr>
                       <th
                         className="py-3 px-3.5 w-10 text-center cursor-pointer"
@@ -935,7 +943,7 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
                           type="checkbox"
                           checked={selectedIds.length === leads.length && leads.length > 0}
                           readOnly
-                          className="rounded border-slate-700 bg-slate-950 text-sky-500 focus:ring-0 cursor-pointer pointer-events-none"
+                          className="rounded border-zinc-700 bg-zinc-950 text-white focus:ring-0 cursor-pointer pointer-events-none accent-white"
                         />
                       </th>
                       <th className="py-3 px-4">Lead & Business</th>
@@ -945,7 +953,7 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
                       <th className="py-3 px-4 text-right">Action</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800/60">
+                  <tbody className="divide-y divide-zinc-800/60">
                     {leads.map((lead) => {
                       const isSelected = selectedIds.includes(lead.id);
                       const isEditing = activeEditingLead?.id === lead.id;
@@ -956,10 +964,10 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
                           key={lead.id}
                           className={`transition-colors cursor-pointer ${
                             isEditing
-                              ? 'bg-indigo-950/30 border-l-4 border-l-indigo-500'
+                              ? 'bg-zinc-850 border-l-4 border-l-white'
                               : isSelected
-                              ? 'bg-slate-800/40 hover:bg-slate-800/60'
-                              : 'hover:bg-slate-800/20'
+                              ? 'bg-zinc-900/40 hover:bg-zinc-900/60'
+                              : 'hover:bg-zinc-900/30'
                           }`}
                           onClick={() => handleOpenMessageDrawer(lead)}
                         >
@@ -974,32 +982,32 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
                               type="checkbox"
                               checked={isSelected}
                               readOnly
-                              className="rounded border-slate-700 bg-slate-950 text-sky-500 focus:ring-0 cursor-pointer pointer-events-none"
+                              className="rounded border-zinc-700 bg-zinc-950 text-white focus:ring-0 cursor-pointer pointer-events-none accent-white"
                             />
                           </td>
 
                           <td className="py-3 px-4">
-                            <div className="font-bold text-slate-100 flex items-center gap-1.5 flex-wrap">
+                            <div className="font-bold text-white flex items-center gap-1.5 flex-wrap">
                               <span>{lead.name}</span>
                               {lead.rating && (
-                                <span className="text-[10px] text-amber-400 font-semibold">★ {lead.rating}</span>
+                                <span className="text-[10px] text-zinc-300 font-mono font-semibold">★ {lead.rating}</span>
                               )}
                               {lead.status === 'not_contacted' ? (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-zinc-800 text-zinc-200 border border-zinc-700">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
                                   NEW
                                 </span>
                               ) : lead.status === 'contacted' ? (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-zinc-800 text-zinc-300 border border-zinc-700">
                                   ✓ Sent
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                                  💬 {lead.status}
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-zinc-800 text-zinc-300 border border-zinc-700">
+                                  {lead.status}
                                 </span>
                               )}
                             </div>
-                            <div className="text-[11px] text-slate-400 truncate max-w-[200px]">
+                            <div className="text-[11px] text-zinc-400 truncate max-w-[200px]">
                               {lead.category || 'Lead'} {lead.address ? `• ${lead.address.split(',')[0]}` : ''}
                             </div>
                           </td>
@@ -1007,14 +1015,14 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
                           <td className="py-3 px-3">
                             <div className="space-y-0.5 font-mono text-[10px]">
                               {lead.phone ? (
-                                <div className="text-emerald-400 flex items-center gap-1">
-                                  <Phone className="h-2.5 w-2.5" />
+                                <div className="text-zinc-200 flex items-center gap-1">
+                                  <Phone className="h-2.5 w-2.5 text-zinc-500" />
                                   <span>{lead.phone}</span>
                                 </div>
                               ) : null}
                               {lead.contact_email ? (
-                                <div className="text-sky-400 flex items-center gap-1 truncate max-w-[150px]">
-                                  <Mail className="h-2.5 w-2.5" />
+                                <div className="text-zinc-400 flex items-center gap-1 truncate max-w-[150px]">
+                                  <Mail className="h-2.5 w-2.5 text-zinc-500" />
                                   <span>{lead.contact_email}</span>
                                 </div>
                               ) : null}
@@ -1025,17 +1033,19 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
                             <div className="space-y-1">
                               {lead.has_website && lead.website ? (
                                 <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-semibold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                                  <span className="w-1 h-1 rounded-full bg-emerald-400" />
                                   <Globe className="h-2.5 w-2.5" /> Has Website
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center gap-1 text-[10px] text-rose-400 font-bold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
-                                  🔴 No Website
+                                  <span className="w-1 h-1 rounded-full bg-rose-500" />
+                                  <Globe className="h-2.5 w-2.5" /> No Website
                                 </span>
                               )}
 
                               {lead.instagram_handle && (
-                                <div className="text-[10px] text-purple-400 font-mono flex items-center gap-1">
-                                  <Instagram className="h-2.5 w-2.5" />
+                                <div className="text-[10px] text-zinc-400 font-mono flex items-center gap-1">
+                                  <Instagram className="h-2.5 w-2.5 text-zinc-500" />
                                   <span>{lead.instagram_handle}</span>
                                 </div>
                               )}
@@ -1044,11 +1054,11 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
 
                           <td className="py-3 px-3">
                             {hasPitch ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                                <Check className="h-3 w-3" /> Ready
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-zinc-800 text-zinc-200 border border-zinc-700">
+                                <Check className="h-3 w-3 text-white" /> Ready
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium bg-slate-800 text-slate-400 border border-slate-700">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium bg-zinc-900 text-zinc-500 border border-zinc-800">
                                 Draft
                               </span>
                             )}
@@ -1062,11 +1072,11 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
                               }}
                               className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ml-auto ${
                                 hasPitch
-                                  ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
-                                  : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/20'
+                                  ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700'
+                                  : 'bg-white hover:bg-zinc-200 text-zinc-950 font-bold shadow'
                               }`}
                             >
-                              <Edit3 className="h-3 w-3 text-sky-400" />
+                              <Edit3 className="h-3 w-3" />
                               <span>{hasPitch ? 'Edit Message' : 'Write Message'}</span>
                             </button>
                           </td>
@@ -1081,22 +1091,22 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
 
           {/* Right Column: Message Composer & Quick Dispatch Drawer */}
           {activeEditingLead && (
-            <div className="lg:col-span-5 p-5 rounded-2xl bg-slate-900 border border-indigo-500/40 shadow-2xl space-y-4 sticky top-20 animate-in fade-in slide-in-from-right-4">
+            <div className="lg:col-span-5 p-5 rounded-2xl bg-[#121215] border border-zinc-800 shadow-2xl space-y-4 sticky top-20 animate-in fade-in slide-in-from-right-4">
               {/* Drawer Header */}
-              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
                 <div>
                   <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-indigo-400" />
+                    <FileText className="h-4 w-4 text-white" />
                     <span>Personalized Message</span>
                   </h3>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    For: <strong className="text-slate-200">{activeEditingLead.name}</strong>
+                  <p className="text-[11px] text-zinc-400 mt-0.5">
+                    For: <strong className="text-white">{activeEditingLead.name}</strong>
                   </p>
                 </div>
 
                 <button
                   onClick={() => setActiveEditingLead(null)}
-                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200"
+                  className="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white border border-zinc-800"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -1105,23 +1115,25 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
               {/* Lead Details Badges */}
               <div className="flex flex-wrap items-center gap-2 text-[10px]">
                 {activeEditingLead.has_website && activeEditingLead.website ? (
-                  <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                    🟢 Website Active
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    <Globe className="h-3 w-3" /> Website Active
                   </span>
                 ) : (
-                  <span className="px-2 py-0.5 rounded bg-rose-500/10 text-rose-300 border border-rose-500/20 font-bold">
-                    🔴 No Website (Hot Lead)
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20 font-bold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                    <Globe className="h-3 w-3" /> No Website (Hot Lead)
                   </span>
                 )}
 
                 {activeEditingLead.phone && (
-                  <span className="px-2 py-0.5 rounded bg-slate-800 text-emerald-400 font-mono">
+                  <span className="px-2 py-0.5 rounded bg-zinc-900 text-zinc-300 font-mono border border-zinc-800">
                     📞 {activeEditingLead.phone}
                   </span>
                 )}
 
                 {activeEditingLead.contact_email && (
-                  <span className="px-2 py-0.5 rounded bg-slate-800 text-sky-400 font-mono">
+                  <span className="px-2 py-0.5 rounded bg-zinc-900 text-zinc-300 font-mono border border-zinc-800">
                     ✉️ {activeEditingLead.contact_email}
                   </span>
                 )}
@@ -1130,10 +1142,10 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
               {/* Message Textarea */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between text-xs">
-                  <label className="font-semibold text-slate-300">Message Copy (Direct Value Hook):</label>
+                  <label className="font-semibold text-zinc-300">Message Copy (Direct Value Hook):</label>
                   <span
                     className={`font-mono text-[11px] ${
-                      wordCount > 70 ? 'text-amber-400 font-bold' : 'text-slate-400'
+                      wordCount > 70 ? 'text-zinc-400 font-bold' : 'text-zinc-400'
                     }`}
                   >
                     {wordCount} words (Recommended: &lt;70w)
@@ -1145,7 +1157,7 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
                   value={editingPitchText}
                   onChange={(e) => setEditingPitchText(e.target.value)}
                   placeholder="Click 'AI Draft Custom Message' below or write your custom message here..."
-                  className="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 placeholder-slate-500 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 leading-relaxed font-sans"
+                  className="w-full p-3 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-white placeholder-zinc-500 focus:border-white focus:ring-1 focus:ring-white leading-relaxed font-sans"
                 />
               </div>
 
@@ -1154,16 +1166,16 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
                 <button
                   onClick={handleGenerateSinglePitch}
                   disabled={generatingSinglePitch}
-                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-all shadow"
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-200 text-xs font-semibold border border-zinc-750 transition-all shadow"
                 >
-                  <Sparkles className={`h-3.5 w-3.5 text-amber-400 ${generatingSinglePitch ? 'animate-spin' : ''}`} />
-                  <span>{generatingSinglePitch ? 'Drafting...' : '🪄 AI Re-Draft'}</span>
+                  <Sparkles className={`h-3.5 w-3.5 text-white ${generatingSinglePitch ? 'animate-spin' : ''}`} />
+                  <span>{generatingSinglePitch ? 'Drafting...' : 'AI Re-Draft'}</span>
                 </button>
 
                 <button
                   onClick={handleSaveMessage}
                   disabled={savingPitch || !editingPitchText.trim()}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md shadow-indigo-600/30 transition-all disabled:opacity-40"
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white hover:bg-zinc-200 text-zinc-950 text-xs font-bold shadow transition-all disabled:opacity-40"
                 >
                   <Save className="h-3.5 w-3.5" />
                   <span>{savingPitch ? 'Saving...' : 'Save Message'}</span>
@@ -1171,19 +1183,19 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
               </div>
 
               {/* Fast 1-Click Send Strip */}
-              <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2.5">
-                <div className="text-[11px] font-semibold text-slate-300 flex items-center justify-between">
+              <div className="p-3.5 rounded-xl bg-zinc-950 border border-zinc-800 space-y-2.5">
+                <div className="text-[11px] font-semibold text-zinc-300 flex items-center justify-between">
                   <span>Fast 1-Click Dispatch:</span>
-                  <span className="text-[10px] text-slate-400">Zero-setup direct actions</span>
+                  <span className="text-[10px] text-zinc-500 font-mono">Zero-setup direct actions</span>
                 </div>
                 
                 <div className="grid grid-cols-2 gap-2">
-                  {/* Open in Gmail (Zero Password / Zero Setup) */}
+                  {/* Open in Gmail */}
                   <button
                     onClick={() => handleOpenInGmail()}
                     disabled={!activeEditingLead.contact_email}
-                    className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-md shadow-rose-600/30 transition-all disabled:opacity-40"
-                    title="1-Click Open in Gmail Web with draft pre-filled (Zero Password / Zero Setup)"
+                    className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold border border-zinc-700 shadow transition-all disabled:opacity-40"
+                    title="1-Click Open in Gmail Web with draft pre-filled"
                   >
                     <Mail className="h-3.5 w-3.5" />
                     <span>Gmail Web ↗</span>
@@ -1193,7 +1205,7 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
                   <button
                     onClick={handleSendDirectWhatsAppFromDrawer}
                     disabled={sendingDirectWhatsApp || !activeEditingLead.phone}
-                    className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/30 transition-all disabled:opacity-40"
+                    className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-white hover:bg-zinc-200 text-zinc-950 text-xs font-bold shadow transition-all disabled:opacity-40"
                     title={isWaConnected ? "Send directly from linked WhatsApp" : "Open WhatsApp chat in new window"}
                   >
                     <MessageCircle className="h-3.5 w-3.5" />
@@ -1201,13 +1213,13 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
                   </button>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800/80">
+                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-zinc-800/80">
                   {/* Background SMTP Email */}
                   <button
                     onClick={handleSendDirectEmailFromDrawer}
                     disabled={sendingDirectEmail || !activeEditingLead.contact_email}
-                    className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-300 text-[11px] font-semibold border border-slate-700 disabled:opacity-40"
-                    title="Dispatch email automatically in the background via SMTP (Zero Tabs)"
+                    className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-[11px] font-semibold border border-zinc-750 disabled:opacity-40"
+                    title="Dispatch email automatically in the background via SMTP"
                   >
                     <Send className={`h-3 w-3 ${sendingDirectEmail ? 'animate-spin' : ''}`} />
                     <span>{sendingDirectEmail ? 'Sending...' : 'Auto-SMTP ⚡'}</span>
@@ -1216,9 +1228,9 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
                   {/* Copy message */}
                   <button
                     onClick={() => handleCopyPitch(activeEditingLead)}
-                    className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold border border-slate-700"
+                    className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-[11px] font-semibold border border-zinc-750"
                   >
-                    <Copy className="h-3 w-3 text-sky-400" />
+                    <Copy className="h-3 w-3 text-zinc-400" />
                     <span>Copy Text</span>
                   </button>
                 </div>
@@ -1227,10 +1239,10 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
           )}
         </div>
       ) : !loading ? (
-        <div className="p-12 text-center rounded-2xl bg-slate-900/40 border border-dashed border-slate-800 space-y-3">
-          <Send className="h-10 w-10 text-slate-600 mx-auto" />
-          <h4 className="text-sm font-semibold text-slate-300">Bulk Campaign Queue is Empty</h4>
-          <p className="text-xs text-slate-500 max-w-md mx-auto">
+        <div className="p-12 text-center rounded-2xl bg-[#121215] border border-dashed border-zinc-800 space-y-3">
+          <Send className="h-10 w-10 text-zinc-600 mx-auto" />
+          <h4 className="text-sm font-semibold text-white">Bulk Campaign Queue is Empty</h4>
+          <p className="text-xs text-zinc-400 max-w-md mx-auto">
             Select prospects in <strong>Find Business Leads</strong>, <strong>Saved Business CRM</strong>, or <strong>YouTube CRM</strong> and click <strong>"Send to Bulk Campaign Queue"</strong> to build your mailing and WhatsApp campaign list here.
           </p>
         </div>

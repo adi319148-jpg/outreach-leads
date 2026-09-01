@@ -36,9 +36,10 @@ export async function searchYouTubeChannels(
   keyword: string,
   minSubs: number = 0,
   maxSubs: number = 10000000,
-  qualityFilter: 'all' | 'needs_thumbnail_redesign' | 'needs_video_editing' = 'all'
+  qualityFilter: 'all' | 'needs_thumbnail_redesign' | 'needs_video_editing' = 'all',
+  userKey?: string
 ): Promise<{ leads: YouTubeLeadResult[]; isMock: boolean; message?: string }> {
-  const apiKey = await getSetting('youtubeApiKey');
+  const apiKey = await getSetting('youtubeApiKey', userKey);
 
   // Query all already-contacted channels from DB
   const contactedRecords = await all<{ external_id?: string; channel_handle?: string; contact_email?: string }>(

@@ -135,11 +135,25 @@ export interface AppSettings {
   resendApiKey?: string;
   resendFromEmail?: string;
   hasResendKey?: boolean;
+  updateFeedUrl?: string;
+  supabaseUrl?: string;
+  supabaseKey?: string;
+  hasSupabaseConfigured?: boolean;
   detectedGoogleProject?: {
     found: boolean;
     projectId?: string;
     clientId?: string;
   };
+}
+
+export interface AppUpdateInfo {
+  currentVersion: string;
+  latestVersion: string;
+  updateAvailable: boolean;
+  releaseNotes?: string;
+  downloadUrl?: string;
+  releaseDate?: string;
+  message?: string;
 }
 
 export interface WhatsAppAccountState {
@@ -207,4 +221,24 @@ export interface InboundReply {
     toneLabel: string;
     recommendedStyle: string;
   };
+}
+
+export interface AccessKeyInfo {
+  id: number;
+  key_code: string;
+  label: string;
+  is_active: number;
+  is_admin?: number;
+  isAdmin?: boolean;
+  plan_type?: 'starter' | 'pro';
+  daily_limit?: number;
+  max_whatsapp_accounts?: number;
+  max_email_accounts?: number;
+  today_whatsapp_count?: number;
+  bound_device_id?: string | null;
+  bound_device_info?: string | null;
+  bound_at?: string | null;
+  device_lock_enabled?: number;
+  created_at: string;
+  last_used_at?: string;
 }

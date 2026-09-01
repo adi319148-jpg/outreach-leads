@@ -408,6 +408,13 @@ export async function disconnectWhatsAppSession(sessionId: string): Promise<What
   return getWhatsAppStatus(sessionId);
 }
 
+export async function deleteWhatsAppAccount(sessionId: string): Promise<{ success: boolean }> {
+  await disconnectWhatsAppSession(sessionId);
+  sessions.delete(sessionId);
+  await run("DELETE FROM whatsapp_accounts WHERE session_id = ?", [sessionId]).catch(() => {});
+  return { success: true };
+}
+
 // Backward compatibility alias
 export async function disconnectWhatsApp(): Promise<WhatsAppAccountState> {
   return disconnectWhatsAppSession('account_1');

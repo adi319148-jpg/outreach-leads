@@ -127,10 +127,11 @@ export async function generatePitch(
   offeredService: OfferedService = 'general',
   customInstructions?: string,
   format: 'whatsapp' | 'email' = 'whatsapp',
-  senderName: string = 'Kropix Studio'
+  senderName: string = 'Kropix Studio',
+  userKey?: string
 ): Promise<{ pitch: string; provider: string; isMock: boolean; warnings?: string[] }> {
-  const geminiKey = await getSetting('geminiApiKey');
-  const claudeKey = await getSetting('claudeApiKey');
+  const geminiKey = await getSetting('geminiApiKey', userKey);
+  const claudeKey = await getSetting('claudeApiKey', userKey);
 
   const isIntl = isInternationalLead(lead);
   const gapResult = performGapAnalysis(lead);

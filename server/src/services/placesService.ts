@@ -27,9 +27,10 @@ export async function searchPlaces(
   radius: number = 10000,
   websiteFilter: 'all' | 'no_website' | 'has_website' = 'all',
   latitude?: number,
-  longitude?: number
+  longitude?: number,
+  userKey?: string
 ): Promise<{ leads: PlaceLeadResult[]; isMock: boolean; message?: string }> {
-  const apiKey = await getSetting('googlePlacesApiKey');
+  const apiKey = await getSetting('googlePlacesApiKey', userKey);
 
   // Query all already-contacted leads from DB to exclude/flag them permanently
   const contactedRecords = await all<{ external_id?: string; phone?: string; name?: string }>(

@@ -23,7 +23,6 @@ import {
   SlidersHorizontal,
   Check,
   AlertTriangle,
-  Flame,
   Phone,
   UserCheck,
   Star,
@@ -31,7 +30,6 @@ import {
   Video,
   Eye,
   QrCode,
-  Zap,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -68,7 +66,6 @@ export const PitchQueue: React.FC<PitchQueueProps> = ({ sourcePreset = 'google_p
       });
       setLeads(res.leads);
 
-      // Initialize edited pitches state
       const pitchMap: Record<number, string> = {};
       res.leads.forEach((l) => {
         if (l.pitch) pitchMap[l.id] = l.pitch;
@@ -81,7 +78,6 @@ export const PitchQueue: React.FC<PitchQueueProps> = ({ sourcePreset = 'google_p
         setSelectedLeadId(null);
       }
 
-      // Check WhatsApp Status
       const wa = await getWhatsAppStatus();
       setWaState(wa);
     } catch (err) {
@@ -142,9 +138,15 @@ export const PitchQueue: React.FC<PitchQueueProps> = ({ sourcePreset = 'google_p
 
     setBatchGenerating(true);
     try {
-      await batchGeneratePitches(unpitched, selectedTone);
+      const res = await batchGeneratePitches(unpitched, selectedTone);
+      const pitchMap = { ...editedPitches };
+      res.results.forEach((r) => {
+        if (r.pitch) pitchMap[r.leadId] = r.pitch;
+      });
+      setEditedPitches(pitchMap);
       await fetchQueue();
       onQueueUpdated();
+      confetti({ particleCount: 80, spread: 60, origin: { y: 0.6 } });
     } catch (err) {
       console.error('Batch generation failed:', err);
     } finally {
@@ -152,98 +154,105 @@ export const PitchQueue: React.FC<PitchQueueProps> = ({ sourcePreset = 'google_p
     }
   };
 
-  const markContactedAction = async (leadId: number) => {
-    if (autoMarkContacted) {
-      try {
-        await updateLead(leadId, { markContacted: true, status: 'contacted' });
+  const handleCopyPitch = async (leadId: number, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedId(leadId);
+      setTimeout(() => setCopiedId(null), 2000);
+
+      if (autoMarkContacted) {
+        await updateLead(leadId, { status: 'contacted' });
         setLeads((prev) =>
           prev.map((l) => (l.id === leadId ? { ...l, status: 'contacted' } : l))
         );
         onQueueUpdated();
-      } catch (err) {
-        console.error('Failed to mark contacted:', err);
       }
+    } catch (err) {
+      console.error('Failed to copy text:', err);
     }
   };
 
-  const handleCopy = (lead: Lead) => {
-    const text = editedPitches[lead.id] || lead.pitch || '';
-    navigator.clipboard.writeText(text);
-    setCopiedId(lead.id);
-    setTimeout(() => setCopiedId(null), 2000);
-    markContactedAction(lead.id);
-  };
-
-  const handleOpenEmail = (lead: Lead) => {
-    const text = editedPitches[lead.id] || lead.pitch || '';
-    const email = lead.contact_email || '';
-    const subject = isYouTube
-      ? `Collaboration & partnership with ${lead.name}`
-      : `Quick question regarding ${lead.name}`;
-    const mailtoUrl = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
-    window.open(mailtoUrl, '_blank');
-    markContactedAction(lead.id);
-  };
-
-  const handleOpenWhatsApp = (lead: Lead) => {
-    const text = editedPitches[lead.id] || lead.pitch || '';
-    const cleanPhone = (lead.phone || '').replace(/[^0-9+]/g, '');
-    const waUrl = cleanPhone
-      ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`
-      : `https://wa.me/?text=${encodeURIComponent(text)}`;
+  const handleSendViaWhatsAppWeb = (lead: Lead, pitch: string) => {
+    if (!lead.phone) return;
+    const cleanPhone = lead.phone.replace(/[^0-9]/g, '');
+    const encodedMsg = encodeURIComponent(pitch);
+    const waUrl = `https://web.whatsapp.com/send?phone=${cleanPhone}&text=${encodedMsg}`;
     window.open(waUrl, '_blank');
-    markContactedAction(lead.id);
+
+    if (autoMarkContacted) {
+      updateLead(lead.id, { status: 'contacted' }).then(() => {
+        setLeads((prev) =>
+          prev.map((l) => (l.id === lead.id ? { ...l, status: 'contacted' } : l))
+        );
+        onQueueUpdated();
+      });
+    }
   };
 
-  const handleDirectWhatsAppSend = async (lead: Lead) => {
-    const phone = lead.phone || '';
-    const text = editedPitches[lead.id] || lead.pitch || '';
-
-    if (!phone) {
-      setWaFeedback({ id: lead.id, success: false, msg: 'No phone number for this lead.' });
-      return;
-    }
-    if (!text) {
-      setWaFeedback({ id: lead.id, success: false, msg: 'Please generate or write a pitch first.' });
-      return;
-    }
-
+  const handleSendDirectWhatsApp = async (lead: Lead, pitch: string) => {
+    if (!lead.phone) return;
     setSendingWaId(lead.id);
     setWaFeedback(null);
 
     try {
       const res = await sendDirectWhatsAppMessage({
-        phone,
-        message: text,
         leadId: lead.id,
+        phone: lead.phone,
+        message: pitch,
       });
 
       if (res.success) {
-        setWaFeedback({ id: lead.id, success: true, msg: 'Message sent successfully via linked WhatsApp!' });
-        markContactedAction(lead.id);
+        setWaFeedback({ id: lead.id, success: true, msg: 'Sent directly via WhatsApp!' });
+        confetti({ particleCount: 60, spread: 50, origin: { y: 0.6 } });
+        if (autoMarkContacted) {
+          await updateLead(lead.id, { status: 'contacted' });
+          setLeads((prev) =>
+            prev.map((l) => (l.id === lead.id ? { ...l, status: 'contacted' } : l))
+          );
+          onQueueUpdated();
+        }
       } else {
-        setWaFeedback({ id: lead.id, success: false, msg: res.message || 'Failed to send.' });
+        setWaFeedback({ id: lead.id, success: false, msg: res.message || 'Send failed' });
       }
     } catch (err: any) {
+      console.error('Direct WhatsApp send failed:', err);
       setWaFeedback({
         id: lead.id,
         success: false,
-        msg: err.response?.data?.message || err.message || 'WhatsApp sending failed. Ensure WhatsApp is connected in Settings.',
+        msg: err.response?.data?.message || err.message || 'Failed to dispatch.',
       });
     } finally {
       setSendingWaId(null);
     }
   };
 
+  const handleSendEmail = (lead: Lead, pitch: string) => {
+    if (!lead.contact_email) return;
+    const subject = `Regarding ${lead.name}`;
+    const mailto = `mailto:${lead.contact_email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(pitch)}`;
+    window.open(mailto, '_blank');
+
+    if (autoMarkContacted) {
+      updateLead(lead.id, { status: 'contacted' }).then(() => {
+        setLeads((prev) =>
+          prev.map((l) => (l.id === lead.id ? { ...l, status: 'contacted' } : l))
+        );
+        onQueueUpdated();
+      });
+    }
+  };
+
   const handleConvertedCelebration = async (leadId: number) => {
-    confetti({
-      particleCount: 100,
-      spread: 70,
-      origin: { y: 0.6 },
-    });
-    await updateLead(leadId, { status: 'converted' });
-    setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, status: 'converted' } : l)));
-    onQueueUpdated();
+    confetti({ particleCount: 150, spread: 100, origin: { y: 0.5 } });
+    try {
+      await updateLead(leadId, { status: 'converted' });
+      setLeads((prev) =>
+        prev.map((l) => (l.id === leadId ? { ...l, status: 'converted' } : l))
+      );
+      onQueueUpdated();
+    } catch (err) {
+      console.error('Failed to mark converted:', err);
+    }
   };
 
   const getWordCount = (text?: string) => {
@@ -262,16 +271,16 @@ export const PitchQueue: React.FC<PitchQueueProps> = ({ sourcePreset = 'google_p
 
   const toneOptions = isYouTube
     ? [
-        { id: 'collab', label: '🤝 Sponsorship / Collab' },
-        { id: 'value_offer', label: '💡 Free Value / Asset' },
-        { id: 'direct', label: '🎯 Direct Partnership' },
-        { id: 'friendly', label: '💬 Friendly Connect' },
+        { id: 'collab', label: 'Sponsorship / Collab' },
+        { id: 'value_offer', label: 'Free Value / Asset' },
+        { id: 'direct', label: 'Direct Partnership' },
+        { id: 'friendly', label: 'Friendly Connect' },
       ]
     : [
-        { id: 'friendly', label: '👋 Friendly (<70w)' },
-        { id: 'value_offer', label: '📈 Value / Free Audit' },
-        { id: 'collab', label: '🤝 Referral Partner' },
-        { id: 'direct', label: '🎯 Direct & Concise' },
+        { id: 'friendly', label: 'Friendly (<70w)' },
+        { id: 'value_offer', label: 'Value / Free Audit' },
+        { id: 'collab', label: 'Referral Partner' },
+        { id: 'direct', label: 'Direct & Concise' },
       ];
 
   const isWaConnected = waState?.status === 'connected';
@@ -279,37 +288,37 @@ export const PitchQueue: React.FC<PitchQueueProps> = ({ sourcePreset = 'google_p
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       {/* Top Controls Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-900/80 border border-slate-800">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-[#121215] border border-zinc-800">
         <div className="flex items-center gap-3">
-          <div className={`p-2 rounded-xl border ${isYouTube ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' : 'bg-sky-500/10 border-sky-500/20 text-sky-400'}`}>
+          <div className="p-2.5 rounded-xl bg-zinc-900 text-white border border-zinc-750">
             {isYouTube ? <Youtube className="h-5 w-5" /> : <MapPin className="h-5 w-5" />}
           </div>
           <div>
-            <div className="text-sm font-bold text-slate-100 flex items-center gap-2">
+            <div className="text-sm font-bold text-white flex items-center gap-2">
               <span>{isYouTube ? 'YouTube Creator Outreach Hub' : 'Google Maps Business Outreach Hub'}</span>
-              <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${isYouTube ? 'bg-rose-500/20 text-rose-300' : 'bg-sky-500/20 text-sky-300'}`}>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-zinc-800 text-zinc-300 border border-zinc-700">
                 {leads.length} Leads
               </span>
               {isWaConnected && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-zinc-800 text-white border border-zinc-700">
+                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
                   WhatsApp Linked
                 </span>
               )}
             </div>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-zinc-400">
               {isYouTube ? 'Draft customized pitches for content creators and influencers' : 'Draft personalized pitches for local businesses and agencies'}
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none">
+          <label className="flex items-center gap-2 text-xs text-zinc-300 cursor-pointer select-none">
             <input
               type="checkbox"
               checked={autoMarkContacted}
               onChange={(e) => setAutoMarkContacted(e.target.checked)}
-              className={`rounded bg-slate-950 border-slate-700 ${isYouTube ? 'text-rose-500 focus:ring-rose-500 accent-rose-500' : 'text-sky-500 focus:ring-sky-500 accent-sky-500'}`}
+              className="rounded bg-zinc-950 border-zinc-700 text-white focus:ring-white accent-white"
             />
             <span>Auto-mark Contacted on dispatch</span>
           </label>
@@ -318,11 +327,7 @@ export const PitchQueue: React.FC<PitchQueueProps> = ({ sourcePreset = 'google_p
             <button
               onClick={handleBatchGenerate}
               disabled={batchGenerating}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-white text-xs font-semibold shadow-md transition-all disabled:opacity-50 ${
-                isYouTube
-                  ? 'bg-gradient-to-r from-rose-600 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 shadow-rose-600/20'
-                  : 'bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 shadow-sky-600/20'
-              }`}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white hover:bg-zinc-200 text-zinc-950 text-xs font-bold shadow transition-all disabled:opacity-50"
             >
               <Sparkles className={`h-3.5 w-3.5 ${batchGenerating ? 'animate-spin' : ''}`} />
               <span>{batchGenerating ? 'Generating Pitches...' : `AI Pitch All (${unpitchedCount})`}</span>
@@ -345,62 +350,49 @@ export const PitchQueue: React.FC<PitchQueueProps> = ({ sourcePreset = 'google_p
                 <div
                   key={lead.id}
                   onClick={() => setSelectedLeadId(lead.id)}
-                  className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+                  className={`p-4 rounded-2xl border transition-all cursor-pointer relative ${
                     isSelected
-                      ? isYouTube
-                        ? 'bg-slate-900 border-rose-500/60 shadow-lg shadow-rose-500/10 ring-1 ring-rose-500/30'
-                        : 'bg-slate-900 border-sky-500/60 shadow-lg shadow-sky-500/10 ring-1 ring-sky-500/30'
-                      : 'bg-slate-900/50 border-slate-800/80 hover:bg-slate-900/80 hover:border-slate-700'
+                      ? 'bg-zinc-850 border-white text-white shadow-md ring-1 ring-white/20'
+                      : 'bg-[#121215] border-zinc-800 hover:border-zinc-700'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="space-y-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <h4 className="text-sm font-bold text-slate-100 truncate">{lead.name}</h4>
+                        <h4 className="text-sm font-bold text-white truncate">{lead.name}</h4>
                       </div>
-                      <p className="text-xs text-slate-400 truncate">
+                      <p className="text-xs text-zinc-400 truncate">
                         {lead.category || 'Prospect'} • {lead.address || lead.channel_handle || '—'}
                       </p>
                     </div>
 
-                    <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-semibold capitalize shrink-0 ${
-                        lead.status === 'converted'
-                          ? 'bg-emerald-500/20 text-emerald-300'
-                          : lead.status === 'contacted'
-                          ? 'bg-amber-500/20 text-amber-300'
-                          : lead.status === 'replied'
-                          ? 'bg-purple-500/20 text-purple-300'
-                          : 'bg-slate-800 text-slate-400'
-                      }`}
-                    >
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-zinc-800 text-zinc-300 border border-zinc-700 shrink-0">
                       {lead.status.replace('_', ' ')}
                     </span>
                   </div>
 
                   {/* Highlights Bar */}
-                  <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-xs">
+                  <div className="mt-3 pt-2.5 border-t border-zinc-800/80 flex items-center justify-between text-xs">
                     {hasPitch ? (
-                      <span className="text-emerald-400 font-medium flex items-center gap-1 text-[11px]">
-                        <Check className="h-3 w-3" />
+                      <span className="text-zinc-300 font-medium flex items-center gap-1 text-[11px]">
+                        <Check className="h-3 w-3 text-white" />
                         Pitch Ready ({words} words)
                       </span>
                     ) : (
-                      <span className="text-slate-500 text-[11px] flex items-center gap-1">
-                        <AlertTriangle className="h-3 w-3 text-amber-400" />
+                      <span className="text-zinc-500 text-[11px] flex items-center gap-1">
+                        <AlertTriangle className="h-3 w-3 text-zinc-400" />
                         Needs draft
                       </span>
                     )}
 
-                    <div className="flex items-center gap-2 text-slate-400 text-[11px]">
+                    <div className="flex items-center gap-2 text-zinc-400 text-[11px]">
                       {lead.subscriber_count ? (
-                        <span className="font-mono text-rose-400 font-semibold">
+                        <span className="font-mono text-zinc-300 font-semibold">
                           {formatNumber(lead.subscriber_count)} subs
                         </span>
                       ) : lead.rating ? (
-                        <span className="flex items-center gap-0.5 text-amber-400 font-semibold font-mono">
-                          <Star className="h-2.5 w-2.5 fill-amber-400" />
-                          {lead.rating}★
+                        <span className="flex items-center gap-0.5 text-zinc-300 font-semibold font-mono">
+                          ★ {lead.rating}
                         </span>
                       ) : null}
                     </div>
@@ -412,24 +404,18 @@ export const PitchQueue: React.FC<PitchQueueProps> = ({ sourcePreset = 'google_p
 
           {/* Right Column: Lead Detail & Outreach Dispatch */}
           {activeLead && (
-            <div className="lg:col-span-7 p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl space-y-6">
+            <div className="lg:col-span-7 p-6 rounded-2xl bg-[#121215] border border-zinc-800 shadow-xl space-y-6">
               {/* Header */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-zinc-800">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${
-                        isYouTube
-                          ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-                          : 'bg-sky-500/10 text-sky-400 border border-sky-500/20'
-                      }`}
-                    >
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold uppercase bg-zinc-900 text-zinc-300 border border-zinc-800">
                       {isYouTube ? <Youtube className="h-3 w-3" /> : <MapPin className="h-3 w-3" />}
                       <span>{isYouTube ? 'YouTube Creator' : 'Google Places Lead'}</span>
                     </span>
                     <h3 className="text-lg font-bold text-white">{activeLead.name}</h3>
                   </div>
-                  <p className="text-xs text-slate-400 mt-1">
+                  <p className="text-xs text-zinc-400 mt-1">
                     {activeLead.category} • {activeLead.address || activeLead.channel_handle || '—'}
                   </p>
                 </div>
@@ -440,7 +426,7 @@ export const PitchQueue: React.FC<PitchQueueProps> = ({ sourcePreset = 'google_p
                       href={activeLead.website}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs flex items-center gap-1 border border-slate-700 transition-colors"
+                      className="p-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs flex items-center gap-1 border border-zinc-800 transition-colors"
                       title={isYouTube ? 'Open YouTube Channel' : 'Open Website'}
                     >
                       <ExternalLink className="h-3.5 w-3.5" />
@@ -448,75 +434,64 @@ export const PitchQueue: React.FC<PitchQueueProps> = ({ sourcePreset = 'google_p
                   )}
                   <button
                     onClick={() => handleConvertedCelebration(activeLead.id)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 text-xs font-semibold border border-emerald-500/30 transition-all"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold border border-zinc-700 transition-all"
                   >
-                    <Flame className="h-3.5 w-3.5 text-emerald-400" />
                     <span>Converted</span>
                   </button>
                 </div>
               </div>
 
-              {/* Specific Stats Row */}
-              {isYouTube ? (
-                <div className="grid grid-cols-3 gap-2 p-3 rounded-xl bg-slate-950/70 border border-slate-800 text-center text-xs">
-                  <div>
-                    <div className="text-slate-500 text-[10px]">Subscribers</div>
-                    <div className="font-bold text-white font-mono">{formatNumber(activeLead.subscriber_count)}</div>
+              {/* Stats Bar */}
+              <div className="grid grid-cols-3 gap-3 p-3.5 rounded-xl bg-zinc-950 border border-zinc-800 text-center text-xs">
+                <div>
+                  <div className="text-[10px] text-zinc-500 font-semibold uppercase">
+                    {isYouTube ? 'Subscribers' : 'Star Rating'}
                   </div>
-                  <div>
-                    <div className="text-slate-500 text-[10px]">Total Videos</div>
-                    <div className="font-bold text-white font-mono">{activeLead.video_count?.toLocaleString() || '—'}</div>
-                  </div>
-                  <div>
-                    <div className="text-slate-500 text-[10px]">Total Views</div>
-                    <div className="font-bold text-white font-mono">{formatNumber(activeLead.view_count)}</div>
+                  <div className="text-sm font-bold text-white font-mono mt-0.5">
+                    {isYouTube ? formatNumber(activeLead.subscriber_count) : activeLead.rating ? `★ ${activeLead.rating} / 5.0` : '—'}
                   </div>
                 </div>
-              ) : (
-                <div className="grid grid-cols-3 gap-2 p-3 rounded-xl bg-slate-950/70 border border-slate-800 text-center text-xs">
-                  <div>
-                    <div className="text-slate-500 text-[10px]">Star Rating</div>
-                    <div className="font-bold text-amber-400 font-mono flex items-center justify-center gap-1">
-                      <Star className="h-3 w-3 fill-amber-400" />
-                      <span>{activeLead.rating || '—'} / 5.0</span>
-                    </div>
+                <div>
+                  <div className="text-[10px] text-zinc-500 font-semibold uppercase">
+                    {isYouTube ? 'Total Videos' : 'Reviews Count'}
                   </div>
-                  <div>
-                    <div className="text-slate-500 text-[10px]">Reviews Count</div>
-                    <div className="font-bold text-white font-mono">{activeLead.user_ratings_total?.toLocaleString() || '0'}</div>
-                  </div>
-                  <div>
-                    <div className="text-slate-500 text-[10px]">Phone Contact</div>
-                    <div className="font-bold text-white font-mono text-[11px] truncate">{activeLead.phone || 'N/A'}</div>
+                  <div className="text-sm font-bold text-white font-mono mt-0.5">
+                    {isYouTube ? formatNumber(activeLead.video_count) : activeLead.user_ratings_total ? formatNumber(activeLead.user_ratings_total) : '—'}
                   </div>
                 </div>
-              )}
+                <div>
+                  <div className="text-[10px] text-zinc-500 font-semibold uppercase">
+                    {isYouTube ? 'Total Views' : 'Phone Contact'}
+                  </div>
+                  <div className="text-sm font-bold text-white font-mono mt-0.5 truncate">
+                    {isYouTube ? formatNumber(activeLead.view_count) : activeLead.phone || '—'}
+                  </div>
+                </div>
+              </div>
 
-              {/* Tone & AI Prompt Controller */}
-              <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-300">
-                    <Sparkles className={`h-3.5 w-3.5 ${isYouTube ? 'text-rose-400' : 'text-sky-400'}`} />
+              {/* Persona Selector & Guidance */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
+                    <SlidersHorizontal className="h-3.5 w-3.5 text-zinc-400" />
                     <span>Pitch Persona & Angle:</span>
-                  </div>
+                  </span>
+                </div>
 
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {toneOptions.map((tone) => (
-                      <button
-                        key={tone.id}
-                        onClick={() => setSelectedTone(tone.id as PitchTone)}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
-                          selectedTone === tone.id
-                            ? isYouTube
-                              ? 'bg-rose-600 text-white font-semibold shadow'
-                              : 'bg-sky-600 text-white font-semibold shadow'
-                            : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
-                        }`}
-                      >
-                        {tone.label}
-                      </button>
-                    ))}
-                  </div>
+                <div className="flex flex-wrap gap-2">
+                  {toneOptions.map((opt) => (
+                    <button
+                      key={opt.id}
+                      onClick={() => setSelectedTone(opt.id as any)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+                        selectedTone === opt.id
+                          ? 'bg-white border-white text-zinc-950 font-bold'
+                          : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
                 </div>
 
                 <div className="flex gap-2">
@@ -524,46 +499,35 @@ export const PitchQueue: React.FC<PitchQueueProps> = ({ sourcePreset = 'google_p
                     type="text"
                     value={customPrompt}
                     onChange={(e) => setCustomPrompt(e.target.value)}
-                    placeholder={
-                      isYouTube
-                        ? 'Custom guidance (e.g. mention sponsor fee or affiliate trial...)'
-                        : 'Custom guidance (e.g. mention automated booking funnel...)'
-                    }
-                    className="flex-1 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs text-slate-200 placeholder-slate-500 focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+                    placeholder="Custom guidance (e.g. mention automated booking funnel...)"
+                    className="flex-1 px-3.5 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-white placeholder-zinc-500 focus:border-white"
                   />
                   <button
                     onClick={() => handleRegeneratePitch(activeLead)}
                     disabled={generatingId === activeLead.id}
-                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-white text-xs font-semibold shadow transition-all disabled:opacity-50 ${
-                      isYouTube ? 'bg-rose-600 hover:bg-rose-500' : 'bg-sky-600 hover:bg-sky-500'
-                    }`}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white hover:bg-zinc-200 text-zinc-950 text-xs font-bold shadow transition-all disabled:opacity-50"
                   >
-                    <RefreshCw className={`h-3 w-3 ${generatingId === activeLead.id ? 'animate-spin' : ''}`} />
-                    <span>{generatingId === activeLead.id ? 'Drafting...' : 'Generate with AI'}</span>
+                    <Sparkles className={`h-3.5 w-3.5 ${generatingId === activeLead.id ? 'animate-spin' : ''}`} />
+                    <span>{generatingId === activeLead.id ? 'Writing...' : 'Generate with AI'}</span>
                   </button>
                 </div>
               </div>
 
-              {/* Editable Pitch Box */}
+              {/* Pitch Editor */}
               <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs text-slate-400">
-                  <span className="font-semibold text-slate-300 flex items-center gap-1.5">
-                    <Edit3 className="h-3.5 w-3.5 text-sky-400" />
-                    Personalized Outreach Message Draft:
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
+                    <Edit3 className="h-3.5 w-3.5 text-zinc-400" />
+                    <span>Personalized Outreach Message Draft:</span>
                   </span>
+
                   <div className="flex items-center gap-3">
-                    <span
-                      className={`font-mono ${
-                        getWordCount(editedPitches[activeLead.id] || activeLead.pitch) > 80
-                          ? 'text-amber-400 font-bold'
-                          : 'text-emerald-400'
-                      }`}
-                    >
-                      {getWordCount(editedPitches[activeLead.id] || activeLead.pitch)} / 80 words
+                    <span className="text-[11px] font-mono text-zinc-400">
+                      {getWordCount(editedPitches[activeLead.id])} / 80 words
                     </span>
                     <button
                       onClick={() => handleSavePitch(activeLead.id)}
-                      className="text-sky-400 hover:text-sky-300 font-medium"
+                      className="text-xs text-zinc-300 hover:text-white font-medium hover:underline"
                     >
                       Save edits
                     </button>
@@ -571,117 +535,74 @@ export const PitchQueue: React.FC<PitchQueueProps> = ({ sourcePreset = 'google_p
                 </div>
 
                 <textarea
-                  rows={5}
-                  value={editedPitches[activeLead.id] ?? activeLead.pitch ?? ''}
+                  value={editedPitches[activeLead.id] || ''}
                   onChange={(e) => handlePitchChange(activeLead.id, e.target.value)}
-                  placeholder="Click 'Generate with AI' above or type your personalized message here..."
-                  className="w-full p-4 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 leading-relaxed font-sans transition-all"
+                  placeholder="Pitch will appear here after generation..."
+                  rows={6}
+                  className="w-full px-4 py-3 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-white placeholder-zinc-500 font-sans leading-relaxed focus:border-white focus:ring-1 focus:ring-white transition-all"
                 />
               </div>
 
-              {/* Feedback toast for WhatsApp direct sending */}
-              {waFeedback && waFeedback.id === activeLead.id && (
-                <div
-                  className={`p-3 rounded-xl text-xs flex items-center gap-2 ${
-                    waFeedback.success
-                      ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-300'
-                      : 'bg-rose-500/10 border border-rose-500/20 text-rose-300'
-                  }`}
+              {/* Action Buttons */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-zinc-800/80">
+                <button
+                  onClick={() => handleCopyPitch(activeLead.id, editedPitches[activeLead.id] || activeLead.pitch || '')}
+                  disabled={!editedPitches[activeLead.id] && !activeLead.pitch}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-200 text-xs font-semibold border border-zinc-750 transition-all disabled:opacity-40"
                 >
-                  {waFeedback.success ? (
-                    <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
-                  ) : (
-                    <AlertTriangle className="h-4 w-4 shrink-0 text-rose-400" />
-                  )}
-                  <span>{waFeedback.msg}</span>
-                </div>
-              )}
+                  <Copy className="h-3.5 w-3.5 text-zinc-400" />
+                  <span>{copiedId === activeLead.id ? 'Copied to Clipboard! ✓' : 'Copy Message'}</span>
+                </button>
 
-              {/* 1-Click Dispatch Actions */}
-              <div className="p-4 rounded-xl bg-slate-950/90 border border-slate-800/90 space-y-3">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-slate-200">1-Click Dispatch Actions:</span>
-                  <span className="text-[11px] text-slate-500">
-                    {isWaConnected ? '🟢 WhatsApp Connected (Direct Send active)' : 'Open draft with pre-filled copy'}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {/* Copy Button */}
-                  <button
-                    onClick={() => handleCopy(activeLead)}
-                    className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 text-xs font-semibold border border-slate-700 shadow transition-all"
-                  >
-                    {copiedId === activeLead.id ? (
-                      <>
-                        <Check className="h-4 w-4 text-emerald-400" />
-                        <span className="text-emerald-400">Copied to Clipboard!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="h-4 w-4 text-sky-400" />
-                        <span>Copy Message</span>
-                      </>
-                    )}
-                  </button>
-
-                  {/* Mailto Button */}
-                  <button
-                    onClick={() => handleOpenEmail(activeLead)}
-                    className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold shadow-lg shadow-sky-600/20 transition-all"
-                  >
-                    <Mail className="h-4 w-4" />
-                    <span>Open Email (mailto:)</span>
-                  </button>
-
-                  {/* WhatsApp Direct Send or YouTube Channel */}
-                  {isYouTube ? (
-                    <a
-                      href={activeLead.website}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={() => markContactedAction(activeLead.id)}
-                      className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold shadow-lg shadow-rose-600/20 transition-all"
-                    >
-                      <Youtube className="h-4 w-4" />
-                      <span>Open YT Channel</span>
-                    </a>
-                  ) : isWaConnected ? (
+                <div className="flex items-center gap-2">
+                  {/* WhatsApp Direct Send */}
+                  {activeLead.phone && (
                     <button
-                      onClick={() => handleDirectWhatsAppSend(activeLead)}
-                      disabled={sendingWaId === activeLead.id}
-                      className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/30 transition-all disabled:opacity-50"
+                      onClick={() => handleSendDirectWhatsApp(activeLead, editedPitches[activeLead.id] || activeLead.pitch || '')}
+                      disabled={sendingWaId === activeLead.id || (!editedPitches[activeLead.id] && !activeLead.pitch)}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white hover:bg-zinc-200 text-zinc-950 text-xs font-bold shadow transition-all disabled:opacity-40"
                     >
-                      <MessageCircle className={`h-4 w-4 ${sendingWaId === activeLead.id ? 'animate-spin' : ''}`} />
-                      <span>{sendingWaId === activeLead.id ? 'Sending...' : 'Direct Send on WhatsApp ⚡'}</span>
+                      <MessageCircle className="h-3.5 w-3.5" />
+                      <span>{sendingWaId === activeLead.id ? 'Sending...' : 'Send WhatsApp'}</span>
                     </button>
-                  ) : (
+                  )}
+
+                  {/* Email Send */}
+                  {activeLead.contact_email && (
                     <button
-                      onClick={() => handleOpenWhatsApp(activeLead)}
-                      className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-lg shadow-emerald-600/20 transition-all"
+                      onClick={() => handleSendEmail(activeLead, editedPitches[activeLead.id] || activeLead.pitch || '')}
+                      disabled={!editedPitches[activeLead.id] && !activeLead.pitch}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-200 text-xs font-semibold border border-zinc-750 transition-all disabled:opacity-40"
                     >
-                      <MessageCircle className="h-4 w-4" />
-                      <span>Open WhatsApp (wa.me)</span>
+                      <Mail className="h-3.5 w-3.5 text-zinc-400" />
+                      <span>Email</span>
                     </button>
                   )}
                 </div>
               </div>
+
+              {waFeedback && waFeedback.id === activeLead.id && (
+                <div className="p-3 rounded-xl bg-zinc-900 border border-zinc-700 text-white text-xs flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 shrink-0 text-white" />
+                  <span>{waFeedback.msg}</span>
+                </div>
+              )}
             </div>
           )}
         </div>
-      ) : !loading ? (
-        <div className="p-12 text-center rounded-2xl bg-slate-900/40 border border-dashed border-slate-800">
-          <Send className="h-10 w-10 text-slate-600 mx-auto mb-3" />
-          <h4 className="text-sm font-semibold text-slate-300">
-            {isYouTube ? 'No YouTube Creators in Outreach Queue' : 'No Business Leads in Outreach Queue'}
-          </h4>
-          <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
-            {isYouTube
-              ? 'Find creators in the "Find YT Channels" tab, save them, and they will appear here ready for AI pitch generation.'
-              : 'Find businesses in the "Find Business Leads" tab, save them, and they will appear here ready for outreach.'}
-          </p>
-        </div>
-      ) : null}
+      ) : (
+        !loading && (
+          <div className="p-12 rounded-2xl bg-[#121215] border border-dashed border-zinc-800 text-center space-y-3">
+            <div className="p-3.5 rounded-2xl bg-zinc-900 text-zinc-400 w-fit mx-auto border border-zinc-800">
+              <Send className="h-6 w-6 text-zinc-400" />
+            </div>
+            <h3 className="text-base font-bold text-white">Outreach Queue is Empty</h3>
+            <p className="text-xs text-zinc-400 max-w-md mx-auto leading-relaxed">
+              Find leads via Google Places or YouTube Search and save them to load your personalized outreach pipeline.
+            </p>
+          </div>
+        )
+      )}
     </div>
   );
 };

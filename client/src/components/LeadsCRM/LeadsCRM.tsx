@@ -30,9 +30,9 @@ import {
   Video,
   Users,
   Instagram,
-  Layers,
   Flame,
   CheckSquare,
+  Square,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -138,28 +138,12 @@ export const LeadsCRM: React.FC<LeadsCRMProps> = ({
       await addToCampaignQueue(selectedIds);
       setCampaignMsg(`Added ${selectedIds.length} selected leads to Bulk Campaign Queue! 🚀`);
       confetti({ particleCount: 80, spread: 60, origin: { y: 0.6 } });
-      setTimeout(() => {
-        setCampaignMsg(null);
-        if (onOpenCampaign) onOpenCampaign();
-      }, 1000);
       onLeadsUpdated();
+      if (onOpenCampaign) {
+        setTimeout(onOpenCampaign, 800);
+      }
     } catch (err) {
-      console.error('Failed to add to campaign:', err);
-    }
-  };
-
-  const handlePushSingleToCampaign = async (leadId: number) => {
-    try {
-      await addToCampaignQueue([leadId]);
-      setCampaignMsg(`Sent lead to Bulk Campaign Queue! 🚀`);
-      confetti({ particleCount: 50, spread: 50, origin: { y: 0.6 } });
-      setTimeout(() => {
-        setCampaignMsg(null);
-        if (onOpenCampaign) onOpenCampaign();
-      }, 1000);
-      onLeadsUpdated();
-    } catch (err) {
-      console.error('Failed to push lead:', err);
+      console.error('Failed to push selected leads to campaign:', err);
     }
   };
 
@@ -177,12 +161,7 @@ export const LeadsCRM: React.FC<LeadsCRMProps> = ({
     );
   };
 
-  const openNotesModal = (lead: Lead) => {
-    setEditingNotesLead(lead);
-    setNotesText(lead.notes || '');
-  };
-
-  const saveNotes = async () => {
+  const handleSaveNotes = async () => {
     if (!editingNotesLead) return;
     try {
       await updateLead(editingNotesLead.id, { notes: notesText });
@@ -190,7 +169,6 @@ export const LeadsCRM: React.FC<LeadsCRMProps> = ({
         prev.map((l) => (l.id === editingNotesLead.id ? { ...l, notes: notesText } : l))
       );
       setEditingNotesLead(null);
-      onLeadsUpdated();
     } catch (err) {
       console.error('Failed to save notes:', err);
     }
@@ -203,420 +181,323 @@ export const LeadsCRM: React.FC<LeadsCRMProps> = ({
     return num.toLocaleString();
   };
 
-  const statusOptions: { value: LeadStatus; label: string; bg: string }[] = [
-    { value: 'not_contacted', label: 'Not Contacted', bg: 'bg-slate-800 text-slate-300' },
-    { value: 'contacted', label: 'Contacted', bg: 'bg-amber-500/20 text-amber-300 border-amber-500/30' },
-    { value: 'replied', label: 'Replied', bg: 'bg-purple-500/20 text-purple-300 border-purple-500/30' },
-    { value: 'converted', label: 'Converted', bg: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' },
-    { value: 'rejected', label: 'Not Interested', bg: 'bg-rose-500/20 text-rose-300 border-rose-500/30' },
-  ];
-
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
-      {/* Header Info */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-900 border border-slate-800">
-        <div className="flex items-center gap-3">
-          <div className={`p-2.5 rounded-xl border ${isYouTube ? 'bg-rose-500/10 border-rose-500/20 text-rose-400' : 'bg-sky-500/10 border-sky-500/20 text-sky-400'}`}>
-            {isYouTube ? <Video className="h-5 w-5" /> : <Building2 className="h-5 w-5" />}
+      {/* Top Filter Card */}
+      <div className="p-6 rounded-2xl bg-[#121215] border border-zinc-800 space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-zinc-800">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-zinc-900 text-white border border-zinc-750">
+              {isYouTube ? <Youtube className="h-5 w-5" /> : <MapPin className="h-5 w-5" />}
+            </div>
+            <div>
+              <div className="text-base font-bold text-white flex items-center gap-2">
+                <span>{isYouTube ? 'Saved YouTube Creators CRM' : 'Saved Local Businesses CRM'}</span>
+                <span className="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-zinc-800 text-zinc-300 border border-zinc-700">
+                  {leads.length} Saved
+                </span>
+              </div>
+              <p className="text-xs text-zinc-400 mt-0.5">
+                Manage contact status, conversion pipelines, interaction history & direct exports.
+              </p>
+            </div>
           </div>
-          <div>
-            <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-              <span>{isYouTube ? 'Saved YouTube Creators CRM Pipeline' : 'Saved Google Places Business CRM'}</span>
-              <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${isYouTube ? 'bg-rose-500/20 text-rose-300' : 'bg-sky-500/20 text-sky-300'}`}>
-                {leads.length} Saved
-              </span>
-            </h3>
-            <p className="text-xs text-slate-400">
-              {isYouTube ? 'Select specific creators and click "Push Selected to Bulk Campaign Queue"' : 'Check specific businesses to dispatch them via Bulk WhatsApp or Email'}
-            </p>
-          </div>
-        </div>
 
-        <div className="flex items-center gap-2">
-          {onOpenCampaign && (
-            <button
-              onClick={onOpenCampaign}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-all"
-            >
-              <Flame className="h-3.5 w-3.5 text-emerald-400" />
-              <span>View Campaign Queue</span>
-            </button>
-          )}
-
-          <button
-            onClick={onOpenQueue}
-            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-white text-xs font-semibold shadow-md transition-all ${
-              isYouTube
-                ? 'bg-rose-600 hover:bg-rose-500 shadow-rose-600/20'
-                : 'bg-sky-600 hover:bg-sky-500 shadow-sky-600/20'
-            }`}
-          >
-            <Send className="h-3.5 w-3.5" />
-            <span>Open {isYouTube ? 'Creator' : 'Business'} Outreach Queue</span>
-          </button>
-        </div>
-      </div>
-
-      {campaignMsg && (
-        <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs flex items-center gap-2 animate-in fade-in">
-          <CheckCircle className="h-4 w-4" />
-          <span>{campaignMsg}</span>
-        </div>
-      )}
-
-      {/* Search and Filters Bar */}
-      <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          {/* Search Input */}
-          <form onSubmit={handleSearchSubmit} className="flex-1 relative">
-            <Search className="h-4 w-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder={isYouTube ? "Search creators by channel name, handle, description..." : "Search businesses by name, niche, location, instagram, phone..."}
-              className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 placeholder-slate-500 focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
-            />
-          </form>
-
-          {/* Filters */}
-          <div className="flex flex-wrap items-center gap-2.5">
-            {!isYouTube && (
-              <select
-                value={hasWebsiteFilter}
-                onChange={(e) => setHasWebsiteFilter(e.target.value)}
-                className="px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-300 focus:border-sky-500"
-              >
-                <option value="all">All Website Status</option>
-                <option value="no_website">🔴 No Website Only</option>
-                <option value="has_website">🟢 Has Website</option>
-              </select>
-            )}
-
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-300 focus:border-sky-500"
-            >
-              <option value="all">All Stages</option>
-              <option value="not_contacted">Not Contacted</option>
-              <option value="contacted">Contacted</option>
-              <option value="replied">Replied</option>
-              <option value="converted">Converted</option>
-              <option value="rejected">Not Interested</option>
-            </select>
-
+          <div className="flex flex-wrap items-center gap-2">
             <a
               href={getExportCsvUrl()}
               download
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition-colors"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-semibold border border-zinc-750 transition-colors"
             >
               <Download className="h-3.5 w-3.5" />
               <span>Export CSV</span>
             </a>
+
+            <button
+              onClick={onOpenQueue}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white hover:bg-zinc-200 text-zinc-950 text-xs font-bold shadow transition-all"
+            >
+              <Send className="h-3.5 w-3.5" />
+              <span>Open Pitch Queue ➔</span>
+            </button>
           </div>
         </div>
 
-        {/* Selected bar: ONLY selected leads get pushed to bulk campaign */}
-        {selectedIds.length > 0 && (
-          <div className="flex items-center justify-between pt-2 border-t border-slate-800 text-xs animate-in fade-in">
-            <span className="text-sky-400 font-bold font-mono">{selectedIds.length} leads checked</span>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handlePushSelectedToCampaign}
-                className="flex items-center gap-1.5 text-white font-bold px-4 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-md shadow-emerald-600/30 transition-all"
-              >
-                <Send className="h-3.5 w-3.5" />
-                <span>Push Selected ({selectedIds.length}) to Bulk Campaign 🚀</span>
-              </button>
-
-              <button
-                onClick={handleBulkDelete}
-                className="flex items-center gap-1 text-rose-400 hover:text-rose-300 font-medium px-3 py-1.5 rounded-xl bg-rose-500/10 border border-rose-500/20"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                <span>Delete</span>
-              </button>
-            </div>
+        {/* Filters and Search Bar */}
+        <form onSubmit={handleSearchSubmit} className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+          <div className="sm:col-span-6 relative">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-500" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search by name, category, city, phone..."
+              className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-white placeholder-zinc-500 focus:border-white"
+            />
           </div>
-        )}
+
+          <div className="sm:col-span-3">
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-zinc-300 focus:border-white"
+            >
+              <option value="all">All Conversion Statuses</option>
+              <option value="discovered">Discovered</option>
+              <option value="pitch_ready">Pitch Ready</option>
+              <option value="contacted">Contacted</option>
+              <option value="replied">Replied</option>
+              <option value="converted">Converted Deal 🎉</option>
+              <option value="rejected">Not Interested</option>
+            </select>
+          </div>
+
+          {!isYouTube && (
+            <div className="sm:col-span-3">
+              <select
+                value={hasWebsiteFilter}
+                onChange={(e) => setHasWebsiteFilter(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-zinc-300 focus:border-white"
+              >
+                <option value="all">All Website Statuses</option>
+                <option value="no_website">No Website Only</option>
+                <option value="has_website">Has Website</option>
+              </select>
+            </div>
+          )}
+        </form>
       </div>
 
-      {/* Leads Table */}
+      {campaignMsg && (
+        <div className="p-3.5 rounded-xl bg-zinc-900 border border-zinc-700 text-white text-xs flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CheckCircle className="h-4 w-4 text-white" />
+            <span>{campaignMsg}</span>
+          </div>
+          {onOpenCampaign && (
+            <button
+              onClick={onOpenCampaign}
+              className="px-3 py-1 rounded-lg bg-white text-zinc-950 font-bold text-xs shadow"
+            >
+              View Campaign Queue ➔
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Batch Select Controls */}
+      {selectedIds.length > 0 && (
+        <div className="p-3 rounded-xl bg-zinc-900 border border-zinc-750 flex items-center justify-between gap-3 text-xs">
+          <span className="font-semibold text-white font-mono">{selectedIds.length} leads selected</span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handlePushSelectedToCampaign}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-zinc-200 text-zinc-950 font-bold text-xs transition-all shadow"
+            >
+              <Flame className="h-3.5 w-3.5" />
+              <span>Send to Bulk Campaign</span>
+            </button>
+            <button
+              onClick={handleBulkDelete}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white font-semibold text-xs border border-zinc-700 transition-colors"
+            >
+              <Trash2 className="h-3.5 w-3.5 text-zinc-400" />
+              <span>Delete Selected</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Table / List */}
       {leads.length > 0 ? (
-        <div className="overflow-hidden rounded-2xl bg-slate-900 border border-slate-800 shadow-md">
+        <div className="rounded-2xl bg-[#121215] border border-zinc-800 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-950 text-slate-400 border-b border-slate-800 font-semibold">
+            <table className="w-full text-left text-xs text-zinc-300">
+              <thead className="bg-zinc-950 border-b border-zinc-800 text-[11px] font-bold text-zinc-400 uppercase tracking-wider select-none">
                 <tr>
-                  <th
-                    className="py-3 px-3.5 w-10 text-center cursor-pointer"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleSelectAll();
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.length === leads.length && leads.length > 0}
-                      readOnly
-                      className="rounded bg-slate-950 border-slate-700 text-sky-500 focus:ring-0 cursor-pointer pointer-events-none"
-                    />
+                  <th className="p-4 w-10">
+                    <button onClick={toggleSelectAll} className="text-zinc-500 hover:text-white">
+                      {selectedIds.length === leads.length && leads.length > 0 ? (
+                        <CheckSquare className="h-4 w-4 text-white" />
+                      ) : (
+                        <Square className="h-4 w-4 text-zinc-600" />
+                      )}
+                    </button>
                   </th>
-                  <th className="py-3.5 px-4">{isYouTube ? 'Channel Title & Handle' : 'Business Name & Maps Location'}</th>
-                  <th className="py-3.5 px-4">{isYouTube ? 'Subscriber Stats' : 'Website Status & Instagram'}</th>
-                  <th className="py-3.5 px-4">{isYouTube ? 'Channel Views' : 'Rating & Reviews'}</th>
-                  <th className="py-3.5 px-4">Contact Info</th>
-                  <th className="py-3.5 px-4">CRM Status</th>
-                  <th className="py-3.5 px-4">AI Pitch</th>
-                  <th className="py-3.5 px-4">Notes</th>
-                  <th className="py-3.5 px-4 text-right">Actions</th>
+                  <th className="p-4">Business / Creator</th>
+                  <th className="p-4">Contact Info</th>
+                  <th className="p-4">Metrics / Stats</th>
+                  <th className="p-4">Conversion Status</th>
+                  <th className="p-4 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60">
-                {leads.map((lead) => {
-                  const isChecked = selectedIds.includes(lead.id);
-
-                  return (
-                    <tr
-                      key={lead.id}
-                      className={`hover:bg-slate-800/40 transition-colors cursor-pointer ${
-                        isChecked ? (isYouTube ? 'bg-rose-950/20' : 'bg-sky-950/20') : ''
-                      }`}
-                      onClick={() => toggleSelect(lead.id)}
-                    >
-                      <td
-                        className="py-3 px-3.5 text-center cursor-pointer"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleSelect(lead.id);
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          readOnly
-                          className="rounded bg-slate-950 border-slate-700 text-sky-500 focus:ring-0 cursor-pointer pointer-events-none"
-                        />
-                      </td>
-
-                      <td className="py-3 px-4">
-                        <div className="font-bold text-slate-100">{lead.name}</div>
-                        <div className="text-[11px] text-slate-400 mt-0.5">
-                          {isYouTube ? (
-                            <span className="text-rose-400 font-mono">{lead.channel_handle || '@channel'}</span>
-                          ) : (
-                            <div className="space-y-0.5">
-                              <div>{lead.category || 'General'}</div>
-                              {lead.address ? (
-                                <a
-                                  href={lead.google_maps_url || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(lead.name + ' ' + lead.address)}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="inline-flex items-center gap-1 text-sky-400 hover:text-sky-300 hover:underline max-w-[220px] truncate text-[10px] font-medium"
-                                  title="View on Google Maps"
-                                >
-                                  <MapPin className="h-3 w-3 shrink-0 text-sky-400" />
-                                  <span className="truncate">{lead.address}</span>
-                                  <ExternalLink className="h-2.5 w-2.5 shrink-0" />
-                                </a>
-                              ) : null}
-                            </div>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* YouTube Stats vs Business Website Status */}
-                      <td className="py-3 px-4">
-                        {isYouTube ? (
-                          <div className="space-y-0.5 font-mono text-[11px]">
-                            <div className="text-rose-400 font-bold">{formatNumber(lead.subscriber_count)} subs</div>
-                            <div className="text-slate-500 text-[10px]">{lead.video_count || 0} videos</div>
-                          </div>
+              <tbody className="divide-y divide-zinc-800/80">
+                {leads.map((lead) => (
+                  <tr
+                    key={lead.id}
+                    className={`hover:bg-zinc-900/60 transition-colors ${
+                      selectedIds.includes(lead.id) ? 'bg-zinc-850/50' : ''
+                    }`}
+                  >
+                    <td className="p-4">
+                      <button onClick={() => toggleSelect(lead.id)} className="text-zinc-500 hover:text-white">
+                        {selectedIds.includes(lead.id) ? (
+                          <CheckSquare className="h-4 w-4 text-white" />
                         ) : (
-                          <div className="space-y-1">
-                            {lead.has_website && lead.website ? (
-                              <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-semibold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                                <Globe className="h-2.5 w-2.5" /> Has Website
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 text-[10px] text-rose-400 font-bold bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
-                                🔴 No Website
-                              </span>
-                            )}
+                          <Square className="h-4 w-4 text-zinc-600" />
+                        )}
+                      </button>
+                    </td>
 
-                            {lead.instagram_handle && (
-                              <a
-                                href={`https://instagram.com/${lead.instagram_handle.replace('@', '')}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="text-[10px] text-purple-400 font-mono flex items-center gap-1 hover:underline block"
-                              >
-                                <Instagram className="h-2.5 w-2.5" />
-                                <span>{lead.instagram_handle}</span>
-                              </a>
-                            )}
-                          </div>
-                        )}
-                      </td>
-
-                      {/* Rating / Views */}
-                      <td className="py-3 px-4">
-                        {isYouTube ? (
-                          <div className="font-mono text-[11px] text-slate-300">
-                            {formatNumber(lead.view_count)} views
-                          </div>
-                        ) : (
-                          <div>
-                            {lead.rating ? (
-                              <div className="flex items-center gap-1">
-                                <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-                                <span className="font-bold text-slate-200">{lead.rating}</span>
-                                <span className="text-slate-500">({lead.user_ratings_total || 0})</span>
-                              </div>
-                            ) : (
-                              <span className="text-slate-500">No ratings</span>
-                            )}
-                          </div>
-                        )}
-                      </td>
-
-                      {/* Contact Info */}
-                      <td className="py-3 px-4 space-y-0.5">
-                        {lead.contact_email && (
-                          <div className="flex items-center gap-1 text-[11px] text-slate-300 font-mono">
-                            <Mail className="h-3 w-3 text-sky-400 shrink-0" />
-                            <span className="truncate max-w-[130px]">{lead.contact_email}</span>
-                          </div>
-                        )}
-                        {lead.phone && (
-                          <div className="flex items-center gap-1 text-[11px] text-emerald-400 font-mono">
-                            <Phone className="h-3 w-3 shrink-0" />
-                            <span>{lead.phone}</span>
-                          </div>
-                        )}
-                        {lead.website && (
+                    <td className="p-4 space-y-1">
+                      <div className="font-bold text-white text-sm flex items-center gap-2 flex-wrap">
+                        <span>{lead.name}</span>
+                        {lead.website ? (
                           <a
                             href={lead.website}
                             target="_blank"
                             rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="flex items-center gap-1 text-[11px] text-sky-400 hover:underline truncate max-w-[130px]"
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono hover:bg-emerald-500/20"
+                            title="Visit Website"
                           >
-                            <Globe className="h-3 w-3 shrink-0" />
-                            <span className="truncate">{lead.website.replace(/^https?:\/\//, '')}</span>
+                            <span className="w-1 h-1 rounded-full bg-emerald-400" />
+                            <span>Web</span>
+                            <ExternalLink className="h-2.5 w-2.5" />
                           </a>
-                        )}
-                        {!lead.contact_email && !lead.phone && !lead.website && (
-                          <span className="text-[11px] text-slate-500">—</span>
-                        )}
-                      </td>
+                        ) : !isYouTube ? (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-rose-500/10 text-rose-400 border border-rose-500/20 font-semibold">
+                            <span className="w-1 h-1 rounded-full bg-rose-500" />
+                            <span>No Website</span>
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="text-[11px] text-zinc-400">
+                        {lead.category} • {lead.address || lead.channel_handle || '—'}
+                      </div>
+                    </td>
 
-                      {/* Status Dropdown */}
-                      <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
-                        <select
-                          value={lead.status}
-                          onChange={(e) => handleStatusChange(lead.id, e.target.value as LeadStatus)}
-                          className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800 text-[11px] font-semibold text-slate-200 focus:border-sky-500 cursor-pointer"
-                        >
-                          {statusOptions.map((opt) => (
-                            <option key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-
-                      {/* Pitch status */}
-                      <td className="py-3 px-4">
-                        {lead.pitch ? (
-                          <div className="flex items-center gap-1 text-emerald-400 font-bold text-[11px]">
-                            <Sparkles className="h-3 w-3" />
-                            <span>Ready</span>
-                          </div>
-                        ) : (
-                          <span className="text-slate-500 text-[11px]">Draft</span>
-                        )}
-                      </td>
-
-                      {/* Notes */}
-                      <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          onClick={() => openNotesModal(lead)}
-                          className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-sky-300 max-w-[110px] truncate"
-                        >
-                          <Edit className="h-3 w-3 shrink-0" />
-                          <span className="truncate">{lead.notes || 'Add note'}</span>
-                        </button>
-                      </td>
-
-                      {/* Actions */}
-                      <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => handlePushSingleToCampaign(lead.id)}
-                            className="p-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 transition-colors flex items-center gap-1 text-[10px] font-bold"
-                            title="Push this lead to Bulk Campaign Queue"
-                          >
-                            <Send className="h-3 w-3" />
-                            <span>Bulk</span>
-                          </button>
-                          <button
-                            onClick={() => handleDelete(lead.id)}
-                            className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 border border-slate-700 transition-colors"
-                            title="Delete Lead"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                    <td className="p-4 space-y-1 font-mono text-[11px]">
+                      {lead.phone && (
+                        <div className="flex items-center gap-1.5 text-zinc-300">
+                          <Phone className="h-3 w-3 text-zinc-500" />
+                          <span>{lead.phone}</span>
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                      )}
+                      {lead.contact_email && (
+                        <div className="flex items-center gap-1.5 text-zinc-300">
+                          <Mail className="h-3 w-3 text-zinc-500" />
+                          <span>{lead.contact_email}</span>
+                        </div>
+                      )}
+                      {!lead.phone && !lead.contact_email && (
+                        <span className="text-zinc-600">No contact info</span>
+                      )}
+                    </td>
+
+                    <td className="p-4 font-mono text-xs">
+                      {isYouTube ? (
+                        <div className="space-y-0.5">
+                          <div className="text-white font-bold">{formatNumber(lead.subscriber_count)} subs</div>
+                          <div className="text-zinc-500 text-[10px]">{formatNumber(lead.video_count)} videos</div>
+                        </div>
+                      ) : (
+                        <div className="space-y-0.5">
+                          {lead.rating ? (
+                            <div className="text-zinc-200 font-bold">★ {lead.rating} / 5.0</div>
+                          ) : (
+                            <div className="text-zinc-600">—</div>
+                          )}
+                          <div className="text-zinc-500 text-[10px]">{lead.user_ratings_total || 0} reviews</div>
+                        </div>
+                      )}
+                    </td>
+
+                    <td className="p-4">
+                      <select
+                        value={lead.status}
+                        onChange={(e) => handleStatusChange(lead.id, e.target.value as LeadStatus)}
+                        className="px-2.5 py-1 rounded-lg bg-zinc-950 border border-zinc-800 text-xs font-mono text-white focus:border-white"
+                      >
+                        <option value="discovered">Discovered</option>
+                        <option value="pitch_ready">Pitch Ready</option>
+                        <option value="contacted">Contacted</option>
+                        <option value="replied">Replied</option>
+                        <option value="converted">Converted 🎉</option>
+                        <option value="rejected">Not Interested</option>
+                      </select>
+                    </td>
+
+                    <td className="p-4 text-right space-x-2">
+                      <button
+                        onClick={() => {
+                          setEditingNotesLead(lead);
+                          setNotesText(lead.notes || '');
+                        }}
+                        className="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white border border-zinc-800 transition-colors"
+                        title="Edit Notes"
+                      >
+                        <Edit className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(lead.id)}
+                        className="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 border border-zinc-800 transition-colors"
+                        title="Delete Lead"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
         </div>
-      ) : !loading ? (
-        <div className="p-12 text-center rounded-2xl bg-slate-900/40 border border-dashed border-slate-800">
-          <MessageSquare className="h-10 w-10 text-slate-600 mx-auto mb-3" />
-          <h4 className="text-sm font-semibold text-slate-300">
-            {isYouTube ? 'No YouTube Creators saved in CRM yet' : 'No Business Leads saved in CRM yet'}
-          </h4>
-          <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
-            {isYouTube
-              ? 'Discover creators in the "Find YT Channels" tab and save them to build your pipeline.'
-              : 'Discover businesses in the "Find Business Leads" tab and save them to build your pipeline.'}
-          </p>
-        </div>
-      ) : null}
+      ) : (
+        !loading && (
+          <div className="p-12 rounded-2xl bg-[#121215] border border-dashed border-zinc-800 text-center space-y-3">
+            <div className="p-3.5 rounded-2xl bg-zinc-900 text-zinc-400 w-fit mx-auto border border-zinc-800">
+              <Users className="h-6 w-6 text-zinc-400" />
+            </div>
+            <h3 className="text-base font-bold text-white">No Leads in CRM</h3>
+            <p className="text-xs text-zinc-400 max-w-md mx-auto leading-relaxed">
+              Find leads using Google Places or YouTube Discovery to build your conversion pipeline.
+            </p>
+          </div>
+        )
+      )}
 
       {/* Notes Modal */}
       {editingNotesLead && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
-            <h3 className="text-sm font-bold text-white">
-              Interaction Notes for {editingNotesLead.name}
-            </h3>
-            <textarea
-              rows={4}
-              value={notesText}
-              onChange={(e) => setNotesText(e.target.value)}
-              placeholder="e.g. Discussing website redesign, meeting scheduled for next week..."
-              className="w-full p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-100 focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
-            />
-            <div className="flex items-center justify-end gap-2">
+          <div className="w-full max-w-md p-6 rounded-2xl bg-[#121215] border border-zinc-800 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+              <h3 className="text-sm font-bold text-white">Notes for {editingNotesLead.name}</h3>
               <button
                 onClick={() => setEditingNotesLead(null)}
-                className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium"
+                className="text-zinc-500 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+
+            <textarea
+              value={notesText}
+              onChange={(e) => setNotesText(e.target.value)}
+              placeholder="Add client requirements, call details, or deal notes..."
+              rows={5}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-white placeholder-zinc-500 focus:border-white font-sans"
+            />
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setEditingNotesLead(null)}
+                className="px-3.5 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white text-xs font-semibold border border-zinc-800 transition-colors"
               >
                 Cancel
               </button>
               <button
-                onClick={saveNotes}
-                className="px-3.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold shadow"
+                onClick={handleSaveNotes}
+                className="px-4 py-1.5 rounded-xl bg-white hover:bg-zinc-200 text-zinc-950 text-xs font-bold shadow transition-all"
               >
                 Save Notes
               </button>

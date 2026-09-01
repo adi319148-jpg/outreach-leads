@@ -1,10 +1,12 @@
 import { Router, Request, Response } from 'express';
 import { searchYouTubeChannels } from '../services/youtubeService';
+import { extractUserKey } from './settings';
 
 const router = Router();
 
 router.post('/search', async (req: Request, res: Response) => {
   try {
+    const userKey = extractUserKey(req);
     const { keyword, minSubs, maxSubs, qualityFilter = 'all' } = req.body;
     if (!keyword) {
       return res.status(400).json({ error: 'Keyword is required.' });
@@ -13,7 +15,7 @@ router.post('/search', async (req: Request, res: Response) => {
     const min = minSubs !== undefined && minSubs !== '' ? parseInt(minSubs, 10) : 0;
     const max = maxSubs !== undefined && maxSubs !== '' ? parseInt(maxSubs, 10) : 10000000;
 
-    const result = await searchYouTubeChannels(keyword, min, max, qualityFilter);
+    const result = await searchYouTubeChannels(keyword, min, max, qualityFilter, userKey);
     return res.json(result);
   } catch (error: any) {
     console.error('YouTube search route error:', error);

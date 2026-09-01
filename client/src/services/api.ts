@@ -11,10 +11,24 @@ import {
   WhatsAppAccountState,
   BatchWhatsAppProgress,
   InboundReply,
+  AppUpdateInfo,
 } from '../types';
 
 const api = axios.create({
   baseURL: '/api',
+});
+
+// Automatically inject per-user access key and session token for isolated workspace & settings
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('outreach_session_token') || sessionStorage.getItem('outreach_session_token');
+  const accessKey = localStorage.getItem('outreach_access_key') || sessionStorage.getItem('outreach_access_key');
+  if (token) {
+    config.headers['Authorization'] = `Bearer ${token}`;
+  }
+  if (accessKey) {
+    config.headers['x-access-key'] = accessKey;
+  }
+  return config;
 });
 
 export const getDashboardStats = async (): Promise<DashboardStats> => {
@@ -181,6 +195,11 @@ export const disconnectWhatsAppAccount = async (sessionId: string): Promise<What
   return res.data;
 };
 
+export const deleteWhatsAppAccount = async (sessionId: string): Promise<{ success: boolean }> => {
+  const res = await api.delete<{ success: boolean }>(`/whatsapp/accounts/${sessionId}`);
+  return res.data;
+};
+
 export const connectWhatsApp = async (forceRestart: boolean = false): Promise<WhatsAppStatusState> => {
   return connectWhatsAppAccount('account_1', 'Primary WhatsApp', forceRestart);
 };
@@ -193,6 +212,7 @@ export const sendDirectWhatsAppMessage = async (payload: {
   phone: string;
   message: string;
   leadId?: number;
+  sessionId?: string;
 }): Promise<{ success: boolean; message: string; messageId?: string }> => {
   const res = await api.post('/whatsapp/send', payload);
   return res.data;
@@ -201,12 +221,14 @@ export const sendDirectWhatsAppMessage = async (payload: {
 export const startWhatsAppBatchCampaign = async (
   leads: Array<{ id: number; name: string; phone: string; message: string }>,
   minDelaySeconds: number = 30,
-  maxDelaySeconds: number = 45
+  maxDelaySeconds: number = 45,
+  allowedSessionIds?: string[]
 ): Promise<{ success: boolean; message: string }> => {
   const res = await api.post('/whatsapp/batch-start', {
     leads,
     minDelaySeconds,
     maxDelaySeconds,
+    allowedSessionIds,
   });
   return res.data;
 };
@@ -299,4 +321,74 @@ export const testResendKey = async (resendApiKey?: string): Promise<{ success: b
 
 export const getExportCsvUrl = (): string => {
   return '/api/leads/export/csv';
+};
+
+export const checkForAppUpdates = async (): Promise<AppUpdateInfo> => {
+  const res = await api.get<AppUpdateInfo>('/settings/check-update');
+  return res.data;
+};
+
+// Access Key Authentication API Methods
+export const loginWithAccessKey = async (
+  accessKey: string,
+  deviceId?: string,
+  deviceInfo?: string
+): Promise<{ success: boolean; token?: string; error?: string; deviceLocked?: boolean; keyInfo?: { id: number; keyCode: string; label: string } }> => {
+  const res = await api.post('/auth/login', { accessKey, deviceId, deviceInfo });
+  return res.data;
+};
+
+export const verifyAccessKey = async (
+  accessKey: string,
+  deviceId?: string
+): Promise<{ success: boolean; valid: boolean; error?: string; deviceMismatch?: boolean; keyInfo?: { id: number; keyCode: string; label: string } }> => {
+  const res = await api.post('/auth/verify', { accessKey, deviceId });
+  return res.data;
+};
+
+export const getAccessKeys = async (): Promise<{ success: boolean; keys: import('../types').AccessKeyInfo[] }> => {
+  const res = await api.get('/auth/keys');
+  return res.data;
+};
+
+export const createAccessKey = async (payload: {
+  label?: string;
+  customKey?: string;
+  planType?: 'starter' | 'pro';
+}): Promise<{ success: boolean; message: string; key?: import('../types').AccessKeyInfo; error?: string }> => {
+  const res = await api.post('/auth/keys', payload);
+  return res.data;
+};
+
+export const toggleAccessKey = async (
+  id: number,
+  isActive: boolean
+): Promise<{ success: boolean; message: string }> => {
+  const res = await api.patch(`/auth/keys/${id}/toggle`, { isActive });
+  return res.data;
+};
+
+export const updateAccessKeyPlan = async (
+  id: number,
+  planType: 'starter' | 'pro'
+): Promise<{ success: boolean; message: string; error?: string }> => {
+  const res = await api.patch(`/auth/keys/${id}/plan`, { planType });
+  return res.data;
+};
+
+export const resetDeviceBinding = async (
+  id: number
+): Promise<{ success: boolean; message: string; error?: string }> => {
+  const res = await api.post(`/auth/keys/${id}/reset-device`);
+  return res.data;
+};
+
+export const deleteAccessKey = async (id: number): Promise<{ success: boolean; message: string; error?: string }> => {
+  const res = await api.delete(`/auth/keys/${id}`);
+  return res.data;
+};
+
+export const changeMasterKey = async (newMasterKey: string): Promise<{ success: boolean; message: string; newKey?: string; error?: string }> => {
+  const res = await api.post('/auth/change-master-key', { newMasterKey });
+  return res.data;
 };

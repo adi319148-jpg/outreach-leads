@@ -4,6 +4,7 @@ import {
   getAllWhatsAppAccounts,
   initializeWhatsAppSession,
   disconnectWhatsAppSession,
+  deleteWhatsAppAccount,
   sendDirectWhatsApp,
   startAntiBanBatchWhatsApp,
   getBatchWhatsAppStatus,
@@ -11,6 +12,8 @@ import {
   getConnectedSessions,
 } from '../services/whatsappService';
 import { get, run } from '../db/database';
+import { checkAndIncrementUsage, checkMultiAccountAllowed } from '../utils/planLimiter';
+import { extractUserKey } from './settings';
 
 const router = Router();
 
@@ -40,7 +43,19 @@ router.get('/status', async (req: Request, res: Response) => {
 // 3. Connect / Initialize a specific session or default
 router.post('/connect', async (req: Request, res: Response) => {
   try {
+    const userKey = extractUserKey(req);
     const { sessionId = 'account_1', accountName, forceRestart = false } = req.body;
+
+    const currentAccounts = await getAllWhatsAppAccounts();
+    const isNewSession = !currentAccounts.some((a) => a.id === sessionId);
+
+    if (isNewSession && sessionId !== 'account_1') {
+      const accountCheck = await checkMultiAccountAllowed(userKey, 'whatsapp', currentAccounts.length);
+      if (!accountCheck.allowed) {
+        return res.status(403).json({ error: accountCheck.message });
+      }
+    }
+
     const status = await initializeWhatsAppSession(sessionId, accountName, forceRestart);
     return res.json(status);
   } catch (error: any) {
@@ -61,12 +76,31 @@ router.post('/disconnect', async (req: Request, res: Response) => {
   }
 });
 
+// 4b. Delete an account completely
+router.delete('/accounts/:sessionId', async (req: Request, res: Response) => {
+  try {
+    const { sessionId } = req.params;
+    const result = await deleteWhatsAppAccount(sessionId);
+    return res.json(result);
+  } catch (error: any) {
+    console.error('WhatsApp delete error:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 // 5. Send Single Direct Message (Supports Round-Robin or Specific Session)
 router.post('/send', async (req: Request, res: Response) => {
   try {
+    const userKey = extractUserKey(req);
     const { phone, message, leadId, sessionId } = req.body;
     if (!phone || !message) {
       return res.status(400).json({ success: false, message: 'Phone number and message are required.' });
+    }
+
+    // Daily Limit Check for Starter vs Pro
+    const usageCheck = await checkAndIncrementUsage(userKey, 'whatsapp', 1);
+    if (!usageCheck.allowed) {
+      return res.status(429).json({ success: false, message: usageCheck.message });
     }
 
     // Strict Double-Send Protection
@@ -108,9 +142,16 @@ router.post('/send', async (req: Request, res: Response) => {
 // 6. Start Multi-WhatsApp Anti-Ban Batch Campaign
 router.post('/batch-start', async (req: Request, res: Response) => {
   try {
+    const userKey = extractUserKey(req);
     const { leads, minDelaySeconds = 30, maxDelaySeconds = 45, allowedSessionIds } = req.body;
     if (!Array.isArray(leads) || leads.length === 0) {
       return res.status(400).json({ success: false, message: 'No leads provided.' });
+    }
+
+    // Daily Limit Check for Starter vs Pro
+    const usageCheck = await checkAndIncrementUsage(userKey, 'whatsapp', leads.length);
+    if (!usageCheck.allowed) {
+      return res.status(429).json({ success: false, message: usageCheck.message });
     }
 
     const result = await startAntiBanBatchWhatsApp(leads, minDelaySeconds, maxDelaySeconds, allowedSessionIds);

@@ -1,11 +1,13 @@
 import { Router, Request, Response } from 'express';
 import { generatePitch, PitchTone, OfferedService } from '../services/aiService';
 import { run, get, all } from '../db/database';
+import { extractUserKey } from './settings';
 
 const router = Router();
 
 router.post('/generate-pitch', async (req: Request, res: Response) => {
   try {
+    const userKey = extractUserKey(req);
     const { lead, tone = 'friendly', offeredService = 'general', customInstructions, leadId } = req.body;
     if (!lead && !leadId) {
       return res.status(400).json({ error: 'Lead data or leadId is required.' });
@@ -23,7 +25,10 @@ router.post('/generate-pitch', async (req: Request, res: Response) => {
       leadData,
       tone as PitchTone,
       offeredService as OfferedService,
-      customInstructions
+      customInstructions,
+      'whatsapp',
+      'Kropix Studio',
+      userKey
     );
 
     // If lead exists in DB, update pitch and offered_service automatically
@@ -47,6 +52,7 @@ router.post('/generate-pitch', async (req: Request, res: Response) => {
 
 router.post('/batch-generate', async (req: Request, res: Response) => {
   try {
+    const userKey = extractUserKey(req);
     const { leadIds, tone = 'friendly', offeredService = 'general', customInstructions } = req.body;
     if (!Array.isArray(leadIds) || leadIds.length === 0) {
       return res.status(400).json({ error: 'leadIds array is required.' });
@@ -68,7 +74,10 @@ router.post('/batch-generate', async (req: Request, res: Response) => {
             lead,
             tone as PitchTone,
             offeredService as OfferedService,
-            customInstructions
+            customInstructions,
+            'whatsapp',
+            'Kropix Studio',
+            userKey
           );
 
           await run(

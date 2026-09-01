@@ -1,10 +1,12 @@
 import { Router, Request, Response } from 'express';
 import { searchPlaces } from '../services/placesService';
+import { extractUserKey } from './settings';
 
 const router = Router();
 
 router.post('/search', async (req: Request, res: Response) => {
   try {
+    const userKey = extractUserKey(req);
     const { category, location, radius, websiteFilter = 'all', latitude, longitude } = req.body;
     if (!category || !location) {
       return res.status(400).json({ error: 'Category and location are required.' });
@@ -17,7 +19,8 @@ router.post('/search', async (req: Request, res: Response) => {
       radiusMeters,
       websiteFilter,
       latitude ? parseFloat(latitude) : undefined,
-      longitude ? parseFloat(longitude) : undefined
+      longitude ? parseFloat(longitude) : undefined,
+      userKey
     );
 
     return res.json(result);

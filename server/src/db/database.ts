@@ -16,6 +16,11 @@ export const db = new sqlite3.Database(dbPath, (err) => {
     console.error('Failed to open database:', err.message);
   } else {
     console.log('Connected to SQLite database at', dbPath);
+    // Enable High-Performance WAL mode and memory caching
+    db.run('PRAGMA journal_mode = WAL;');
+    db.run('PRAGMA synchronous = NORMAL;');
+    db.run('PRAGMA cache_size = -64000;');
+    db.run('PRAGMA temp_store = MEMORY;');
     initDatabase();
   }
 });
@@ -103,6 +108,16 @@ export async function initDatabase() {
   `);
 
   await run(`
+    CREATE TABLE IF NOT EXISTS user_settings (
+      user_key TEXT NOT NULL,
+      key TEXT NOT NULL,
+      value TEXT,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (user_key, key)
+    )
+  `);
+
+  await run(`
     CREATE TABLE IF NOT EXISTS activity_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       lead_id INTEGER,
@@ -146,5 +161,51 @@ export async function initDatabase() {
     )
   `);
 
-  console.log('Database tables initialized with multi-whatsapp and api_cache support.');
+  await run(`
+    CREATE TABLE IF NOT EXISTS access_keys (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      key_code TEXT UNIQUE NOT NULL,
+      label TEXT NOT NULL,
+      is_active INTEGER DEFAULT 1,
+      is_admin INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      last_used_at DATETIME
+    )
+  `);
+
+  await addColumnIfNotExists('access_keys', 'is_admin INTEGER DEFAULT 0', 'is_admin');
+  await addColumnIfNotExists('access_keys', 'updated_at DATETIME DEFAULT CURRENT_TIMESTAMP', 'updated_at');
+  await addColumnIfNotExists('access_keys', "plan_type TEXT DEFAULT 'pro'", 'plan_type');
+  await addColumnIfNotExists('access_keys', 'daily_limit INTEGER DEFAULT 40', 'daily_limit');
+  await addColumnIfNotExists('access_keys', 'max_whatsapp_accounts INTEGER DEFAULT 1', 'max_whatsapp_accounts');
+  await addColumnIfNotExists('access_keys', 'max_email_accounts INTEGER DEFAULT 1', 'max_email_accounts');
+  await addColumnIfNotExists('access_keys', 'bound_device_id TEXT', 'bound_device_id');
+  await addColumnIfNotExists('access_keys', 'bound_device_info TEXT', 'bound_device_info');
+  await addColumnIfNotExists('access_keys', 'bound_at DATETIME', 'bound_at');
+  await addColumnIfNotExists('access_keys', 'device_lock_enabled INTEGER DEFAULT 1', 'device_lock_enabled');
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS daily_usage (
+      key_code TEXT NOT NULL,
+      channel TEXT NOT NULL,
+      usage_date TEXT NOT NULL,
+      count INTEGER DEFAULT 0,
+      PRIMARY KEY (key_code, channel, usage_date)
+    )
+  `);
+
+  // Seed default master access key if no keys exist
+  const existingKey = await get<{ count: number }>('SELECT count(*) as count FROM access_keys');
+  if (!existingKey || existingKey.count === 0) {
+    await run(
+      'INSERT INTO access_keys (key_code, label, is_active, is_admin) VALUES (?, ?, ?, ?)',
+      ['OUTREACH-PRO-2025', 'Master Access Key', 1, 1]
+    );
+    console.log('[Database] Default Access Key seeded: OUTREACH-PRO-2025 (Admin)');
+  } else {
+    // Ensure master key always has admin privileges
+    await run('UPDATE access_keys SET is_admin = 1 WHERE UPPER(key_code) = ?', ['OUTREACH-PRO-2025']);
+  }
+
+  console.log('Database tables initialized with access_keys, multi-whatsapp and api_cache support.');
 }

@@ -47,27 +47,22 @@ A modern, high-performance web dashboard that helps businesses discover high-int
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Quick Start & Launching Options
 
-### 1. Install Dependencies
-In the root directory, install all packages:
-```bash
-# Root packages (concurrently)
-npm install
+### 💻 Option 1: Run as Windows Desktop Application (Recommended)
+Double-click `Start-Desktop-App.bat` or `Launch-App-Silent.vbs`.
+> 💡 **Tip**: Double-click `Create-Desktop-Shortcut.bat` to automatically place a desktop icon on your Windows Desktop!
 
-# Server packages
-cd server && npm install && cd ..
+### 🌐 Option 2: Run in Local Web Browser
+Double-click `start.bat` ➔ Opens automatically at `http://localhost:3001`.
 
-# Client packages
-cd client && npm install && cd ..
-```
+### 🌍 Option 3: Run Online (Global Live Link)
+Double-click `start-online.bat` ➔ Generates a 100% Free HTTPS live link to access from anywhere / mobile.
 
-### 2. Run Development Server
-Run both client and server concurrently with one command:
+### ⚙️ Option 4: Development Mode
 ```bash
 npm run dev
 ```
-
 - **Frontend Dashboard**: `http://localhost:5173`
 - **Backend API Server**: `http://localhost:3001`
 

@@ -13,11 +13,24 @@ leads.db
 *.sqlite
 *.sqlite3
 *.db
+*.db-shm
+*.db-wal
+server/*.db*
 data/
 
-# WhatsApp Web Session & Chrome profile cache
+# WhatsApp Web & Baileys Session
 .wwebjs_auth/
 .wwebjs_cache/
+.baileys_auth/
+server/.baileys_auth/
+
+# Packaging & Dist
+dist-electron/
+dist-installer/
+FOR_CLIENT_SEND_THIS/
+*.zip
+.agents/
+skills-lock.json
 
 # Environment Variables
 .env
