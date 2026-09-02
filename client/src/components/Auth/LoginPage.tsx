@@ -33,12 +33,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!accessKey.trim()) {
-      setErrorMsg('Please enter your Product Access Key to proceed.');
+      setErrorMsg('Please enter your Product Passkey or registered Client Email to proceed.');
       setIsDeviceLocked(false);
       return;
     }
 
-    const cleanKey = accessKey.trim().toUpperCase();
+    const rawInput = accessKey.trim();
+    const cleanKey = rawInput.toUpperCase();
 
     try {
       setLoading(true);
@@ -48,13 +49,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
       const deviceId = getDeviceId();
       const deviceInfo = getDeviceInfo();
 
-      const res = await loginWithAccessKey(cleanKey, deviceId, deviceInfo);
+      const res = await loginWithAccessKey(rawInput, deviceId, deviceInfo);
       if (res.success && res.keyInfo) {
+        const keyToStore = res.keyInfo.keyCode || cleanKey;
         if (rememberMe) {
-          localStorage.setItem('outreach_access_key', cleanKey);
+          localStorage.setItem('outreach_access_key', keyToStore);
           if (res.token) localStorage.setItem('outreach_session_token', res.token);
         } else {
-          sessionStorage.setItem('outreach_access_key', cleanKey);
+          sessionStorage.setItem('outreach_access_key', keyToStore);
           if (res.token) sessionStorage.setItem('outreach_session_token', res.token);
         }
         onLoginSuccess(res.keyInfo);
@@ -92,14 +94,18 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
         return;
       }
 
-      // Check generated client keys in local/cloud store
+      // Check generated client keys in local/cloud store (By Key Code OR Email/Label)
       const localKeys = getLocalKeys();
-      const matched = localKeys.find((k) => k.key_code.trim().toUpperCase() === cleanKey);
+      const matched = localKeys.find(
+        (k) =>
+          k.key_code.trim().toUpperCase() === cleanKey ||
+          (k.label && k.label.trim().toLowerCase() === rawInput.toLowerCase())
+      );
       if (matched && matched.is_active === 1) {
         if (rememberMe) {
-          localStorage.setItem('outreach_access_key', cleanKey);
+          localStorage.setItem('outreach_access_key', matched.key_code);
         } else {
-          sessionStorage.setItem('outreach_access_key', cleanKey);
+          sessionStorage.setItem('outreach_access_key', matched.key_code);
         }
         onLoginSuccess({
           id: matched.id,
@@ -116,7 +122,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
         setIsDeviceLocked(true);
       }
       const serverMsg = err.response?.data?.error;
-      setErrorMsg(serverMsg || 'Invalid Access Key. Please enter a valid product key.');
+      setErrorMsg(serverMsg || (rawInput.includes('@') ? `No license found for email "${rawInput}". Please enter your Product Passkey.` : 'Invalid Access Key. Please enter a valid product key.'));
     } finally {
       setLoading(false);
     }
@@ -222,7 +228,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
           <form onSubmit={handleSubmit} className="space-y-4 relative z-10">
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-zinc-300 flex items-center justify-between">
-                <span>PRODUCT ACCESS KEY</span>
+                <span>PASSKEY OR CLIENT EMAIL</span>
                 <span className="text-[10px] font-mono text-zinc-500 font-normal">REQUIRED</span>
               </label>
 
@@ -238,9 +244,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
                     setAccessKey(e.target.value);
                     if (errorMsg) setErrorMsg(null);
                   }}
-                  placeholder="ENTER YOUR PASSKEY..."
+                  placeholder="ENTER PASSKEY OR EMAIL (e.g. @NOVA0511 or user@email.com)..."
                   autoFocus
-                  className="w-full pl-10 pr-10 py-3 rounded-xl bg-zinc-950 border border-zinc-800 text-white font-mono text-xs placeholder:text-zinc-600 focus:border-white focus:ring-1 focus:ring-white transition-all uppercase tracking-wider"
+                  className="w-full pl-10 pr-10 py-3 rounded-xl bg-zinc-950 border border-zinc-800 text-white font-mono text-xs placeholder:text-zinc-600 focus:border-white focus:ring-1 focus:ring-white transition-all tracking-wider"
                 />
 
                 <button

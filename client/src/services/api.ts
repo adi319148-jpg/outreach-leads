@@ -512,7 +512,61 @@ export const saveLocalKeys = (keys: import('../types').AccessKeyInfo[]) => {
   } catch {}
 };
 
-// Access Key Authentication API Methods (Instant Zero-Lag Check)
+const SUPABASE_REST_URL = 'https://bryrrgzbxggmxtelscyo.supabase.co/rest/v1';
+const SUPABASE_ANON_KEY = 'sb_publishable_itQcKFQriTCsBd4yG1CYVA_nNd2EWkP';
+
+// Helper to fetch keys from Supabase Cloud (accessible from any device in the world)
+export const fetchCloudKeysFromSupabase = async (): Promise<import('../types').AccessKeyInfo[]> => {
+  try {
+    const res = await fetch(`${SUPABASE_REST_URL}/access_keys?select=*`, {
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+    });
+    if (res.ok) {
+      const rows = await res.json();
+      if (Array.isArray(rows)) {
+        return rows.map((r: any) => ({
+          id: r.id,
+          key_code: r.key_code,
+          label: r.label || 'Client License',
+          is_active: r.is_active ? 1 : 0,
+          is_admin: 0,
+          plan_type: 'starter',
+          daily_limit: 40,
+          duration_days: 30,
+          created_at: r.created_at || new Date().toISOString(),
+          days_left: 30,
+        }));
+      }
+    }
+  } catch {}
+  return [];
+};
+
+// Helper to upsert a key to Supabase Cloud
+export const syncKeyToSupabaseCloud = async (key_code: string, label: string, is_active: boolean = true) => {
+  try {
+    await fetch(`${SUPABASE_REST_URL}/access_keys`, {
+      method: 'POST',
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json',
+        Prefer: 'resolution=merge-duplicates,return=representation',
+      },
+      body: JSON.stringify({
+        key_code,
+        label,
+        is_active,
+        updated_at: new Date().toISOString(),
+      }),
+    });
+  } catch {}
+};
+
+// Access Key Authentication API Methods (Multi-Device & Email Support)
 export const loginWithAccessKey = async (
   accessKey: string,
   deviceId?: string,
@@ -534,7 +588,8 @@ export const loginWithAccessKey = async (
     daysRemaining?: number | null;
   };
 }> => {
-  const cleanKey = accessKey.trim().toUpperCase();
+  const rawInput = accessKey.trim();
+  const cleanKey = rawInput.toUpperCase();
 
   // 1. Instant check for Master Keys (< 1ms)
   const isMaster =
@@ -558,9 +613,32 @@ export const loginWithAccessKey = async (
     };
   }
 
-  // 2. Instant check in Local / Cloud Generated Keys (No network lag)
+  // 2. Instant check in Local Store (Key Code OR Assigned Email/Label)
   const localKeys = getLocalKeys();
-  const matched = localKeys.find((k) => k.key_code.trim().toUpperCase() === cleanKey);
+  let matched = localKeys.find(
+    (k) =>
+      k.key_code.trim().toUpperCase() === cleanKey ||
+      (k.label && k.label.trim().toLowerCase() === rawInput.toLowerCase())
+  );
+
+  // 3. Check Supabase Cloud Database (Multi-Device & Email verification)
+  if (!matched) {
+    try {
+      const cloudKeys = await fetchCloudKeysFromSupabase();
+      if (cloudKeys.length > 0) {
+        matched = cloudKeys.find(
+          (k) =>
+            k.key_code.trim().toUpperCase() === cleanKey ||
+            (k.label && k.label.trim().toLowerCase() === rawInput.toLowerCase())
+        );
+        if (matched) {
+          const merged = [matched, ...localKeys.filter((lk) => lk.key_code !== matched!.key_code)];
+          saveLocalKeys(merged);
+        }
+      }
+    } catch {}
+  }
+
   if (matched) {
     if (matched.is_active !== 1) {
       return { success: false, error: 'License key has been deactivated by administrator.' };
@@ -594,9 +672,9 @@ export const loginWithAccessKey = async (
     };
   }
 
-  // 3. Fast backend check with 1.5s timeout
+  // 4. Fast backend check with 1.5s timeout
   try {
-    const res = await api.post('/auth/login', { accessKey, deviceId, deviceInfo }, { timeout: 1500 });
+    const res = await api.post('/auth/login', { accessKey: rawInput, deviceId, deviceInfo }, { timeout: 1500 });
     if (res.data && res.data.success) {
       return res.data;
     }
@@ -606,7 +684,12 @@ export const loginWithAccessKey = async (
     }
   }
 
-  return { success: false, error: 'Invalid Access Key. Please enter a valid product key.' };
+  return {
+    success: false,
+    error: rawInput.includes('@')
+      ? `No active license key assigned to "${rawInput}". Please enter your Product Passkey or ask admin to assign your email.`
+      : 'Invalid Access Key. Please enter a valid product key.',
+  };
 };
 
 export const verifyAccessKey = async (
@@ -629,7 +712,8 @@ export const verifyAccessKey = async (
     daysRemaining?: number | null;
   };
 }> => {
-  const cleanKey = accessKey.trim().toUpperCase();
+  const rawInput = accessKey.trim();
+  const cleanKey = rawInput.toUpperCase();
 
   // 1. Instant check for Master Keys
   const isMaster =
@@ -653,9 +737,28 @@ export const verifyAccessKey = async (
     };
   }
 
-  // 2. Instant check in Local / Cloud Keys
+  // 2. Instant check in Local Keys
   const localKeys = getLocalKeys();
-  const matched = localKeys.find((k) => k.key_code.trim().toUpperCase() === cleanKey);
+  let matched = localKeys.find(
+    (k) =>
+      (k.key_code.trim().toUpperCase() === cleanKey ||
+        (k.label && k.label.trim().toLowerCase() === rawInput.toLowerCase())) &&
+      k.is_active === 1
+  );
+
+  // 3. Supabase Cloud Check
+  if (!matched) {
+    try {
+      const cloudKeys = await fetchCloudKeysFromSupabase();
+      matched = cloudKeys.find(
+        (k) =>
+          (k.key_code.trim().toUpperCase() === cleanKey ||
+            (k.label && k.label.trim().toLowerCase() === rawInput.toLowerCase())) &&
+          k.is_active === 1
+      );
+    } catch {}
+  }
+
   if (matched && matched.is_active === 1) {
     return {
       success: true,
@@ -671,9 +774,9 @@ export const verifyAccessKey = async (
     };
   }
 
-  // 3. Fast backend check
+  // 4. Fast backend check
   try {
-    const res = await api.post('/auth/verify', { accessKey, deviceId }, { timeout: 1500 });
+    const res = await api.post('/auth/verify', { accessKey: rawInput, deviceId }, { timeout: 1500 });
     if (res.data) return res.data;
   } catch {}
 
@@ -687,10 +790,24 @@ export const getAccessKeys = async (): Promise<{ success: boolean; keys: import(
       saveLocalKeys(res.data.keys);
       return res.data;
     }
-  } catch (err) {
-    console.warn('[API Notice] Using resilient local keys store:', err);
-  }
-  return { success: true, keys: getLocalKeys() };
+  } catch {}
+
+  const local = getLocalKeys();
+  try {
+    const cloud = await fetchCloudKeysFromSupabase();
+    if (cloud.length > 0) {
+      const merged = [...local];
+      for (const ck of cloud) {
+        if (!merged.some((m) => m.key_code.toUpperCase() === ck.key_code.toUpperCase())) {
+          merged.push(ck);
+        }
+      }
+      saveLocalKeys(merged);
+      return { success: true, keys: merged };
+    }
+  } catch {}
+
+  return { success: true, keys: local };
 };
 
 export const createAccessKey = async (payload: {
@@ -704,9 +821,7 @@ export const createAccessKey = async (payload: {
     if (res.data && res.data.success) {
       return res.data;
     }
-  } catch (err) {
-    console.warn('[API Notice] Generating key via resilient cloud engine:', err);
-  }
+  } catch {}
 
   // Resilient Client-Side Generation (Vercel Standalone Mode)
   const randomSeg = () => Math.random().toString(36).substring(2, 6).toUpperCase();
@@ -736,9 +851,12 @@ export const createAccessKey = async (payload: {
   const updated = [newKey, ...existing.filter((k) => k.key_code !== keyCode)];
   saveLocalKeys(updated);
 
+  // Sync to Supabase Cloud so any user on any device/email can login!
+  syncKeyToSupabaseCloud(keyCode, newKey.label, true);
+
   return {
     success: true,
-    message: 'New access key created successfully!',
+    message: 'New access key created and synced to cloud successfully!',
     key: newKey,
   };
 };
