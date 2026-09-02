@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { KeyRound, ShieldCheck, ArrowRight, Eye, EyeOff, Lock, Sparkles, CheckCircle2, AlertCircle, ExternalLink } from 'lucide-react';
-import { loginWithAccessKey } from '../../services/api';
+import { loginWithAccessKey, getLocalKeys } from '../../services/api';
 import { BorderBeam } from '../ReactBits/BorderBeam';
 import { Particles } from '../ReactBits/Particles';
 import { getDeviceId, getDeviceInfo } from '../../utils/deviceFingerprint';
@@ -88,6 +88,26 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
           dailyLimit: 999999,
           maxWhatsappAccounts: 10,
           maxEmailAccounts: 10,
+        });
+        return;
+      }
+
+      // Check generated client keys in local/cloud store
+      const localKeys = getLocalKeys();
+      const matched = localKeys.find((k) => k.key_code.trim().toUpperCase() === cleanKey);
+      if (matched && matched.is_active === 1) {
+        if (rememberMe) {
+          localStorage.setItem('outreach_access_key', cleanKey);
+        } else {
+          sessionStorage.setItem('outreach_access_key', cleanKey);
+        }
+        onLoginSuccess({
+          id: matched.id,
+          keyCode: matched.key_code,
+          label: matched.label,
+          isAdmin: matched.is_admin === 1,
+          planType: matched.plan_type || 'starter',
+          dailyLimit: matched.daily_limit || 40,
         });
         return;
       }

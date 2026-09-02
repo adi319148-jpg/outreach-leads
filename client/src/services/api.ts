@@ -350,58 +350,8 @@ export const checkForAppUpdates = async (): Promise<AppUpdateInfo> => {
   return res.data;
 };
 
-// Access Key Authentication API Methods
-export const loginWithAccessKey = async (
-  accessKey: string,
-  deviceId?: string,
-  deviceInfo?: string
-): Promise<{
-  success: boolean;
-  token?: string;
-  error?: string;
-  deviceLocked?: boolean;
-  expired?: boolean;
-  keyInfo?: {
-    id: number;
-    keyCode: string;
-    label: string;
-    isAdmin?: boolean;
-    planType?: string;
-    activatedAt?: string | null;
-    expiresAt?: string | null;
-    daysRemaining?: number | null;
-  };
-}> => {
-  const res = await api.post('/auth/login', { accessKey, deviceId, deviceInfo });
-  return res.data;
-};
-
-export const verifyAccessKey = async (
-  accessKey: string,
-  deviceId?: string
-): Promise<{
-  success: boolean;
-  valid: boolean;
-  error?: string;
-  deviceMismatch?: boolean;
-  expired?: boolean;
-  keyInfo?: {
-    id: number;
-    keyCode: string;
-    label: string;
-    isAdmin?: boolean;
-    planType?: string;
-    activatedAt?: string | null;
-    expiresAt?: string | null;
-    daysRemaining?: number | null;
-  };
-}> => {
-  const res = await api.post('/auth/verify', { accessKey, deviceId });
-  return res.data;
-};
-
 // Helper for resilient client storage on serverless / Vercel cloud hosting
-const getLocalKeys = (): import('../types').AccessKeyInfo[] => {
+export const getLocalKeys = (): import('../types').AccessKeyInfo[] => {
   try {
     const raw = localStorage.getItem('outreach_cloud_keys');
     if (raw) {
@@ -458,10 +408,178 @@ const getLocalKeys = (): import('../types').AccessKeyInfo[] => {
   ];
 };
 
-const saveLocalKeys = (keys: import('../types').AccessKeyInfo[]) => {
+export const saveLocalKeys = (keys: import('../types').AccessKeyInfo[]) => {
   try {
     localStorage.setItem('outreach_cloud_keys', JSON.stringify(keys));
   } catch {}
+};
+
+// Access Key Authentication API Methods (Instant Zero-Lag Check)
+export const loginWithAccessKey = async (
+  accessKey: string,
+  deviceId?: string,
+  deviceInfo?: string
+): Promise<{
+  success: boolean;
+  token?: string;
+  error?: string;
+  deviceLocked?: boolean;
+  expired?: boolean;
+  keyInfo?: {
+    id: number;
+    keyCode: string;
+    label: string;
+    isAdmin?: boolean;
+    planType?: string;
+    activatedAt?: string | null;
+    expiresAt?: string | null;
+    daysRemaining?: number | null;
+  };
+}> => {
+  const cleanKey = accessKey.trim().toUpperCase();
+
+  // 1. Instant check for Master Keys (< 1ms)
+  const isMaster =
+    cleanKey === 'OUTREACH-PRO-2025' ||
+    cleanKey === '@NOVA0511' ||
+    cleanKey === 'NOVA0511' ||
+    cleanKey === 'ADMIN2025';
+
+  if (isMaster) {
+    return {
+      success: true,
+      token: 'master-token-' + Date.now(),
+      keyInfo: {
+        id: 1,
+        keyCode: cleanKey,
+        label: cleanKey.includes('NOVA') ? 'Master Owner Key (NOVA)' : 'Master Access Key',
+        isAdmin: true,
+        planType: 'pro',
+        daysRemaining: 999,
+      },
+    };
+  }
+
+  // 2. Instant check in Local / Cloud Generated Keys (No network lag)
+  const localKeys = getLocalKeys();
+  const matched = localKeys.find((k) => k.key_code.trim().toUpperCase() === cleanKey);
+  if (matched) {
+    if (matched.is_active !== 1) {
+      return { success: false, error: 'License key has been deactivated by administrator.' };
+    }
+
+    if (matched.device_lock_enabled !== 0 && matched.bound_device_id && deviceId) {
+      if (matched.bound_device_id !== deviceId) {
+        return {
+          success: false,
+          deviceLocked: true,
+          error: `🚫 Device mismatch: This passkey is registered to another device (${matched.bound_device_info || 'Bound Device'}).`,
+        };
+      }
+    } else if (deviceId && !matched.bound_device_id) {
+      matched.bound_device_id = deviceId;
+      matched.bound_device_info = deviceInfo || 'Registered Device';
+      saveLocalKeys(localKeys);
+    }
+
+    return {
+      success: true,
+      token: 'client-token-' + matched.id,
+      keyInfo: {
+        id: matched.id,
+        keyCode: matched.key_code,
+        label: matched.label,
+        isAdmin: matched.is_admin === 1,
+        planType: matched.plan_type || 'starter',
+        daysRemaining: matched.days_left || 30,
+      },
+    };
+  }
+
+  // 3. Fast backend check with 1.5s timeout
+  try {
+    const res = await api.post('/auth/login', { accessKey, deviceId, deviceInfo }, { timeout: 1500 });
+    if (res.data && res.data.success) {
+      return res.data;
+    }
+  } catch (err: any) {
+    if (err.response?.data?.error) {
+      return { success: false, error: err.response.data.error, deviceLocked: err.response.data.deviceLocked };
+    }
+  }
+
+  return { success: false, error: 'Invalid Access Key. Please enter a valid product key.' };
+};
+
+export const verifyAccessKey = async (
+  accessKey: string,
+  deviceId?: string
+): Promise<{
+  success: boolean;
+  valid: boolean;
+  error?: string;
+  deviceMismatch?: boolean;
+  expired?: boolean;
+  keyInfo?: {
+    id: number;
+    keyCode: string;
+    label: string;
+    isAdmin?: boolean;
+    planType?: string;
+    activatedAt?: string | null;
+    expiresAt?: string | null;
+    daysRemaining?: number | null;
+  };
+}> => {
+  const cleanKey = accessKey.trim().toUpperCase();
+
+  // 1. Instant check for Master Keys
+  const isMaster =
+    cleanKey === 'OUTREACH-PRO-2025' ||
+    cleanKey === '@NOVA0511' ||
+    cleanKey === 'NOVA0511' ||
+    cleanKey === 'ADMIN2025';
+
+  if (isMaster) {
+    return {
+      success: true,
+      valid: true,
+      keyInfo: {
+        id: 1,
+        keyCode: cleanKey,
+        label: cleanKey.includes('NOVA') ? 'Master Owner Key (NOVA)' : 'Master Access Key',
+        isAdmin: true,
+        planType: 'pro',
+        daysRemaining: 999,
+      },
+    };
+  }
+
+  // 2. Instant check in Local / Cloud Keys
+  const localKeys = getLocalKeys();
+  const matched = localKeys.find((k) => k.key_code.trim().toUpperCase() === cleanKey);
+  if (matched && matched.is_active === 1) {
+    return {
+      success: true,
+      valid: true,
+      keyInfo: {
+        id: matched.id,
+        keyCode: matched.key_code,
+        label: matched.label,
+        isAdmin: matched.is_admin === 1,
+        planType: matched.plan_type || 'starter',
+        daysRemaining: matched.days_left || 30,
+      },
+    };
+  }
+
+  // 3. Fast backend check
+  try {
+    const res = await api.post('/auth/verify', { accessKey, deviceId }, { timeout: 1500 });
+    if (res.data) return res.data;
+  } catch {}
+
+  return { success: false, valid: false, error: 'Key expired or deactivated' };
 };
 
 export const getAccessKeys = async (): Promise<{ success: boolean; keys: import('../types').AccessKeyInfo[] }> => {
