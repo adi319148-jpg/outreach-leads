@@ -6,7 +6,19 @@ import { Particles } from '../ReactBits/Particles';
 import { getDeviceId, getDeviceInfo } from '../../utils/deviceFingerprint';
 
 interface LoginPageProps {
-  onLoginSuccess: (keyInfo: { id: number; keyCode: string; label: string }) => void;
+  onLoginSuccess: (keyInfo: {
+    id: number;
+    keyCode: string;
+    label: string;
+    isAdmin?: boolean;
+    planType?: string;
+    dailyLimit?: number;
+    maxWhatsappAccounts?: number;
+    maxEmailAccounts?: number;
+    activatedAt?: string | null;
+    expiresAt?: string | null;
+    daysRemaining?: number | null;
+  }) => void;
   onBackToLanding?: () => void;
 }
 
