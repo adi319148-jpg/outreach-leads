@@ -595,10 +595,11 @@ export async function generateSmartReply(
   incomingMessage: string,
   originalPitch?: string,
   leadName?: string,
-  senderName: string = 'Kropix Studio'
+  senderName: string = 'Kropix Studio',
+  userKey?: string
 ): Promise<{ reply: string; sentiment: SentimentAnalysis; warnings?: string[] }> {
   const sentiment = analyzeMessageSentiment(incomingMessage);
-  const geminiKey = await getSetting('geminiApiKey');
+  const geminiKey = await getSetting('geminiApiKey', userKey);
 
   const prompt = `You are a real, friendly human conversational specialist responding to a business client's message.
 

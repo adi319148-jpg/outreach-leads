@@ -397,7 +397,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentAdminKey }) => {
                   }`}
                 >
                   <div className="font-bold text-xs">Starter Plan (₹499/mo)</div>
-                  <div className="text-[11px] text-zinc-400 mt-0.5">1 WhatsApp • 1 Email • 40 Msgs Daily Limit</div>
+                  <div className="text-[11px] text-zinc-400 mt-0.5">1 Account • 40 Msgs/Day • 200 Google Maps Leads/Day</div>
                 </button>
 
                 <button

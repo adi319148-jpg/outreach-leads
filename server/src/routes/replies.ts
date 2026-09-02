@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { run, all, get } from '../db/database';
 import { sendDirectWhatsApp } from '../services/whatsappService';
 import { generateSmartReply, analyzeMessageSentiment } from '../services/aiService';
+import { extractUserKey } from './settings';
 
 const router = Router();
 
@@ -71,12 +72,13 @@ router.post('/mark-read', async (req: Request, res: Response) => {
 // 3. AI Sentiment-Matched Smart Reply Generator
 router.post('/generate-ai-response', async (req: Request, res: Response) => {
   try {
+    const userKey = extractUserKey(req);
     const { incomingMessage, originalPitch, leadName } = req.body;
     if (!incomingMessage) {
       return res.status(400).json({ error: 'incomingMessage is required.' });
     }
 
-    const result = await generateSmartReply(incomingMessage, originalPitch, leadName);
+    const result = await generateSmartReply(incomingMessage, originalPitch, leadName, 'Kropix Studio', userKey);
     return res.json(result);
   } catch (error: any) {
     console.error('Generate smart reply error:', error);

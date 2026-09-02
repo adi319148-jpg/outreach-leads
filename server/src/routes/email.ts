@@ -1,15 +1,24 @@
 import { Router, Request, Response } from 'express';
 import { sendDirectEmail, testSmtpConnection } from '../services/emailService';
 import { run, get, all } from '../db/database';
+import { extractUserKey } from './settings';
+import { checkAndIncrementUsage } from '../utils/planLimiter';
 
 const router = Router();
 
 // 1. Send single email in background (Zero tabs)
 router.post('/send', async (req: Request, res: Response) => {
   try {
+    const userKey = extractUserKey(req);
     const { to, subject, message, leadId } = req.body;
     if (!to || !message) {
       return res.status(400).json({ success: false, message: 'Recipient email and message body are required.' });
+    }
+
+    // Daily Limit Check for Starter vs Pro (40 msgs/day total)
+    const usageCheck = await checkAndIncrementUsage(userKey, 'email', 1);
+    if (!usageCheck.allowed) {
+      return res.status(429).json({ success: false, message: usageCheck.message });
     }
 
     // Strict Duplicate Exclusion Check: Never email contacted leads again
@@ -27,7 +36,7 @@ router.post('/send', async (req: Request, res: Response) => {
     }
 
     const emailSubject = subject || 'Quick question regarding your business';
-    const result = await sendDirectEmail(to, emailSubject, message);
+    const result = await sendDirectEmail(to, emailSubject, message, undefined, userKey);
 
     if (result.success && leadId) {
       await run(
@@ -50,6 +59,7 @@ router.post('/send', async (req: Request, res: Response) => {
 // 2. Batch send emails in background
 router.post('/batch-send', async (req: Request, res: Response) => {
   try {
+    const userKey = extractUserKey(req);
     const { leads } = req.body;
     if (!Array.isArray(leads) || leads.length === 0) {
       return res.status(400).json({ success: false, message: 'No leads provided for batch email.' });
@@ -78,6 +88,12 @@ router.post('/batch-send', async (req: Request, res: Response) => {
       });
     }
 
+    // Daily Limit Check for Starter vs Pro (Combined 40 msgs/day)
+    const usageCheck = await checkAndIncrementUsage(userKey, 'email', eligibleLeads.length);
+    if (!usageCheck.allowed) {
+      return res.status(429).json({ success: false, message: usageCheck.message });
+    }
+
     // Run batch sending asynchronously in background
     (async () => {
       console.log(`[EmailBatch] Starting background batch email for ${eligibleLeads.length} leads...`);
@@ -86,7 +102,7 @@ router.post('/batch-send', async (req: Request, res: Response) => {
         if (!lead.email || !lead.message) continue;
 
         const subject = lead.subject || `Quick question regarding ${lead.name}`;
-        const sendResult = await sendDirectEmail(lead.email, subject, lead.message);
+        const sendResult = await sendDirectEmail(lead.email, subject, lead.message, undefined, userKey);
 
         if (sendResult.success && lead.id) {
           await run(

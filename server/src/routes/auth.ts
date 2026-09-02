@@ -8,6 +8,7 @@ import {
   deletePasskeyFromSupabase,
   fetchPasskeysFromSupabase,
 } from '../services/supabaseService';
+import { adminGuard } from '../middleware/authGuard';
 
 const router = Router();
 
@@ -301,7 +302,7 @@ router.post('/verify', async (req: Request, res: Response) => {
  * GET /api/auth/keys
  * Admin endpoint: List all access keys with subscription plans & device bindings
  */
-router.get('/keys', async (_req: Request, res: Response) => {
+router.get('/keys', adminGuard, async (_req: Request, res: Response) => {
   try {
     const keys = await all<AccessKeyRecord>(`
       SELECT 
@@ -342,7 +343,7 @@ router.get('/keys', async (_req: Request, res: Response) => {
  * POST /api/auth/keys
  * Admin endpoint: Generate or add a new access key (Saves to SQLite + Supabase)
  */
-router.post('/keys', async (req: Request, res: Response) => {
+router.post('/keys', adminGuard, async (req: Request, res: Response) => {
   try {
     const { label, customKey, planType = 'pro', durationDays = 30 } = req.body;
 
@@ -399,7 +400,7 @@ router.post('/keys', async (req: Request, res: Response) => {
  * PATCH /api/auth/keys/:id/toggle
  * Admin endpoint: Activate or Deactivate a key
  */
-router.patch('/keys/:id/toggle', async (req: Request, res: Response) => {
+router.patch('/keys/:id/toggle', adminGuard, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { isActive } = req.body;
@@ -426,7 +427,7 @@ router.patch('/keys/:id/toggle', async (req: Request, res: Response) => {
  * PATCH /api/auth/keys/:id/plan
  * Admin endpoint: Update client subscription plan (Starter vs Pro)
  */
-router.patch('/keys/:id/plan', async (req: Request, res: Response) => {
+router.patch('/keys/:id/plan', adminGuard, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { planType } = req.body;
@@ -458,7 +459,7 @@ router.patch('/keys/:id/plan', async (req: Request, res: Response) => {
  * POST /api/auth/keys/:id/reset-device
  * Super Admin endpoint: Reset / unbind device lock for a client
  */
-router.post('/keys/:id/reset-device', async (req: Request, res: Response) => {
+router.post('/keys/:id/reset-device', adminGuard, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const targetKey = await get<AccessKeyRecord>('SELECT * FROM access_keys WHERE id = ?', [id]);
@@ -485,7 +486,7 @@ router.post('/keys/:id/reset-device', async (req: Request, res: Response) => {
  * POST /api/auth/keys/:id/extend
  * Super Admin endpoint: Extend subscription by +30 days (or specified days)
  */
-router.post('/keys/:id/extend', async (req: Request, res: Response) => {
+router.post('/keys/:id/extend', adminGuard, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { days = 30 } = req.body;
@@ -524,7 +525,7 @@ router.post('/keys/:id/extend', async (req: Request, res: Response) => {
  * DELETE /api/auth/keys/:id
  * Admin endpoint: Delete an access key
  */
-router.delete('/keys/:id', async (req: Request, res: Response) => {
+router.delete('/keys/:id', adminGuard, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 

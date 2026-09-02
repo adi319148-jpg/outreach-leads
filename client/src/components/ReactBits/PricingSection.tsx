@@ -118,7 +118,7 @@ export const PricingSection: React.FC<PricingSectionProps> = ({ onSelectPlan }) 
                 <div className="h-5 w-5 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0">
                   <Check className="h-3 w-3 text-white" />
                 </div>
-                <span><strong>Unlimited Google Maps 360° Radar</strong></span>
+                <span><strong>200 Google Maps Leads / Day</strong> (Daily Reset)</span>
               </div>
 
               <div className="flex items-center gap-2.5 text-zinc-200">
@@ -143,7 +143,7 @@ export const PricingSection: React.FC<PricingSectionProps> = ({ onSelectPlan }) 
             onClick={() => onSelectPlan('starter')}
             className="w-full py-3.5 px-4 rounded-xl bg-zinc-900 hover:bg-zinc-850 text-white border border-zinc-750 text-xs font-bold transition-all shadow cursor-pointer flex items-center justify-center gap-2"
           >
-            <span>Get Starter Passkey (₹{billingCycle === 'monthly' ? '199' : '999'})</span>
+            <span>Get Starter Passkey (₹{billingCycle === 'monthly' ? '499' : '2,499'})</span>
             <ArrowRight className="h-3.5 w-3.5" />
           </motion.button>
         </div>
@@ -244,7 +244,7 @@ export const PricingSection: React.FC<PricingSectionProps> = ({ onSelectPlan }) 
             onClick={() => onSelectPlan('pro')}
             className="w-full py-3.5 px-4 rounded-xl bg-white hover:bg-zinc-200 text-zinc-950 text-xs font-black transition-all shadow-xl cursor-pointer flex items-center justify-center gap-2 relative z-10"
           >
-            <span>Get Agency Pro Passkey (₹{billingCycle === 'monthly' ? '499' : '1,999'}) ➔</span>
+            <span>Get Agency Pro Passkey (₹{billingCycle === 'monthly' ? '999' : '4,999'}) ➔</span>
           </motion.button>
         </div>
       </div>

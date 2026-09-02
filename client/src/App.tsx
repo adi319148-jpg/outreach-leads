@@ -59,9 +59,10 @@ export const App: React.FC = () => {
         }
       })
       .catch(() => {
-        // In case server is starting up or offline, allow persistent key
-        setIsAuthenticated(true);
-        fetchStats();
+        // Verification failed or offline: strictly require login passkey
+        localStorage.removeItem('outreach_access_key');
+        sessionStorage.removeItem('outreach_access_key');
+        setIsAuthenticated(false);
       });
   }, []);
 

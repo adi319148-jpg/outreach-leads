@@ -230,8 +230,9 @@ router.post('/kill-switch', async (req: Request, res: Response) => {
 
 // Test key validity
 router.post('/test-key', async (req: Request, res: Response) => {
+  const userKey = extractUserKey(req);
   const { service, key } = req.body;
-  const testKey = key && !key.includes('••••') ? key : await getSetting(getSettingKeyName(service));
+  const testKey = key && !key.includes('••••') ? key : await getSetting(getSettingKeyName(service), userKey);
 
   if (!testKey) {
     return res.status(400).json({ success: false, message: 'No API key provided to test.' });

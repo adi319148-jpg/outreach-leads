@@ -14,11 +14,13 @@ import {
   AppUpdateInfo,
 } from '../types';
 
+import { getDeviceId } from '../utils/deviceFingerprint';
+
 const api = axios.create({
   baseURL: '/api',
 });
 
-// Automatically inject per-user access key and session token for isolated workspace & settings
+// Automatically inject per-user access key, device ID and session token
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('outreach_session_token') || sessionStorage.getItem('outreach_session_token');
   const accessKey = localStorage.getItem('outreach_access_key') || sessionStorage.getItem('outreach_access_key');
@@ -28,8 +30,28 @@ api.interceptors.request.use((config) => {
   if (accessKey) {
     config.headers['x-access-key'] = accessKey;
   }
+  try {
+    config.headers['x-device-id'] = getDeviceId();
+  } catch {}
   return config;
 });
+
+// Auto-purge credentials if server reports revoked, expired, or locked passkey
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (
+      error.response?.status === 401 ||
+      (error.response?.status === 403 && (error.response?.data?.expired || error.response?.data?.deviceLocked))
+    ) {
+      localStorage.removeItem('outreach_access_key');
+      sessionStorage.removeItem('outreach_access_key');
+      localStorage.removeItem('outreach_session_token');
+      sessionStorage.removeItem('outreach_session_token');
+    }
+    return Promise.reject(error);
+  }
+);
 
 export const getDashboardStats = async (): Promise<DashboardStats> => {
   const res = await api.get<DashboardStats>('/dashboard/stats');

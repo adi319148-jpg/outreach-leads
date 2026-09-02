@@ -29,6 +29,8 @@ process.on('unhandledRejection', (reason: any) => {
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+import { apiAuthGuard } from './middleware/authGuard';
+
 // Middleware
 app.use(cors({ origin: '*' }));
 app.use(express.json({ limit: '10mb' }));
@@ -39,6 +41,9 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
   console.log(`[${new Date().toISOString().split('T')[1].slice(0, 8)}] ${req.method} ${req.originalUrl}`);
   next();
 });
+
+// Global API Security Guard (Checks active passkey, device lock, & subscription expiry)
+app.use('/api', apiAuthGuard);
 
 // API Routes
 app.use('/api/auth', authRoutes);

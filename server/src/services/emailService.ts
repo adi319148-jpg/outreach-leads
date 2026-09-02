@@ -12,8 +12,8 @@ export interface EmailSendResult {
 
 let currentResendKeyIndex = 0;
 
-export async function parseResendKeys(customRaw?: string): Promise<string[]> {
-  const raw = customRaw !== undefined ? customRaw : ((await getSetting('resendApiKey')) || process.env.RESEND_API_KEY || '');
+export async function parseResendKeys(customRaw?: string, userKey?: string): Promise<string[]> {
+  const raw = customRaw !== undefined ? customRaw : ((await getSetting('resendApiKey', userKey)) || (userKey ? '' : process.env.RESEND_API_KEY) || '');
   if (!raw) return [];
   return raw
     .split(/[\n,;\s]+/)
@@ -33,11 +33,11 @@ export async function getEmailTransporter(customConfig?: {
   port?: string | number;
   user?: string;
   pass?: string;
-}) {
-  const host = customConfig?.host || (await getSetting('smtpHost')) || process.env.SMTP_HOST || 'smtp.gmail.com';
-  const port = parseInt(String(customConfig?.port || (await getSetting('smtpPort')) || process.env.SMTP_PORT || '465'), 10);
-  const user = customConfig?.user || (await getSetting('smtpUser')) || process.env.SMTP_USER || '';
-  const pass = customConfig?.pass || (await getSetting('smtpPass')) || process.env.SMTP_PASS || '';
+}, userKey?: string) {
+  const host = customConfig?.host || (await getSetting('smtpHost', userKey)) || 'smtp.gmail.com';
+  const port = Number(customConfig?.port || (await getSetting('smtpPort', userKey)) || 465);
+  const user = customConfig?.user || (await getSetting('smtpUser', userKey)) || process.env.SMTP_USER || '';
+  const pass = customConfig?.pass || (await getSetting('smtpPass', userKey)) || process.env.SMTP_PASS || '';
   const secure = port === 465;
 
   if (!user || !pass) {
@@ -58,14 +58,16 @@ export async function getEmailTransporter(customConfig?: {
 export async function sendDirectEmail(
   to: string,
   subject: string,
-  body: string
+  body: string,
+  customConfig?: any,
+  userKey?: string
 ): Promise<EmailSendResult> {
   if (!to || !to.includes('@')) {
     return { success: false, message: `Invalid recipient email address: ${to}` };
   }
 
-  const resendKeys = await parseResendKeys();
-  const resendFrom = (await getSetting('resendFromEmail')) || 'onboarding@resend.dev';
+  const resendKeys = await parseResendKeys(undefined, userKey);
+  const resendFrom = (await getSetting('resendFromEmail', userKey)) || 'onboarding@resend.dev';
 
   // 1. Priority 1: Multi-Key Round-Robin Resend Pool
   if (resendKeys.length > 0) {
