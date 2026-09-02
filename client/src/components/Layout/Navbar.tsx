@@ -166,7 +166,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         ) : (
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-900 border border-zinc-800 text-[11px] text-zinc-300 font-medium">
-            <span>✨ Lifetime Pass</span>
+            <span>✨ Active Plan</span>
           </div>
         )}
 

@@ -457,17 +457,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentAdminKey }) => {
 
                 <button
                   type="button"
-                  onClick={() => setNewKeyDuration(0)}
+                  onClick={() => setNewKeyDuration(90)}
                   className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                    newKeyDuration === 0
+                    newKeyDuration === 90
                       ? 'bg-zinc-900 border-white text-white shadow-md'
                       : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white'
                   }`}
                 >
                   <div className="font-bold text-xs flex items-center gap-1.5">
-                    <span>✨ Lifetime Pass</span>
+                    <Clock className="h-3.5 w-3.5 text-purple-400" />
+                    <span>90 Days (Quarterly)</span>
                   </div>
-                  <div className="text-[10px] text-zinc-500 mt-0.5">Never expires (Permanent)</div>
+                  <div className="text-[10px] text-zinc-500 mt-0.5">3 Months validity</div>
                 </button>
               </div>
             </div>
@@ -630,7 +631,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentAdminKey }) => {
                           <div className="text-[10px] text-zinc-500 font-mono">Starts on 1st login</div>
                         </div>
                       ) : (
-                        <span className="text-zinc-400 font-mono text-[11px]">✨ Lifetime</span>
+                        <span className="text-zinc-400 font-mono text-[11px]">⏳ Unset Duration</span>
                       )}
                     </td>
 

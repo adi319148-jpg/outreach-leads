@@ -47,9 +47,9 @@ export const PricingSection: React.FC<PricingSectionProps> = ({ onSelectPlan }) 
                 : 'text-zinc-400 hover:text-white'
             }`}
           >
-            <span>Lifetime / Yearly Pass</span>
+            <span>Yearly (Annual Pass)</span>
             <span className="px-1.5 py-0.2 rounded-md bg-emerald-500/20 text-emerald-400 text-[10px] font-mono font-bold">
-              SAVE 60%
+              SAVE 58%
             </span>
           </button>
         </div>
@@ -174,14 +174,14 @@ export const PricingSection: React.FC<PricingSectionProps> = ({ onSelectPlan }) 
             <div className="border-y border-zinc-750 py-5">
               <div className="flex items-baseline gap-2">
                 <span className="text-4xl sm:text-5xl font-black text-white tracking-tight">
-                  {billingCycle === 'monthly' ? '₹999' : '₹3,999'}
+                  {billingCycle === 'monthly' ? '₹999' : '₹4,999'}
                 </span>
                 <span className="text-xs text-zinc-400 font-medium">
-                  {billingCycle === 'monthly' ? '/ month' : '/ lifetime access'}
+                  {billingCycle === 'monthly' ? '/ month' : '/ 1-year pass'}
                 </span>
               </div>
               <p className="text-[11px] text-emerald-400 font-mono mt-1">
-                {billingCycle === 'monthly' ? '● Unlimited volume • Priority AI speed' : '● Pay once • Never pay again (Lifetime Pass)'}
+                {billingCycle === 'monthly' ? '● Unlimited volume • Priority AI speed' : '● 12 months full unlimited access • Save 58%'}
               </p>
             </div>
 
