@@ -20,7 +20,16 @@ import { getDeviceId } from './utils/deviceFingerprint';
 export const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [showLoginGate, setShowLoginGate] = useState<boolean>(false);
-  const [currentKeyInfo, setCurrentKeyInfo] = useState<{ id: number; keyCode: string; label: string; isAdmin?: boolean } | null>(null);
+  const [currentKeyInfo, setCurrentKeyInfo] = useState<{
+    id: number;
+    keyCode: string;
+    label: string;
+    isAdmin?: boolean;
+    planType?: string;
+    activatedAt?: string | null;
+    expiresAt?: string | null;
+    daysRemaining?: number | null;
+  } | null>(null);
   const [currentTab, setCurrentTab] = useState<NavTab>('dashboard');
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [campaignQueueCount, setCampaignQueueCount] = useState<number>(0);
@@ -171,6 +180,7 @@ export const App: React.FC = () => {
           mockMode={false}
           killSwitchActive={killSwitchActive}
           onKillSwitchToggled={(active) => setKillSwitchActive(active)}
+          keyInfo={currentKeyInfo}
         />
 
         {/* Scrollable View Container */}

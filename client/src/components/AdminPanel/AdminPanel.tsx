@@ -5,6 +5,7 @@ import {
   toggleAccessKey,
   updateAccessKeyPlan,
   resetDeviceBinding,
+  extendAccessKey,
   deleteAccessKey,
   getSettings,
 } from '../../services/api';
@@ -21,6 +22,8 @@ import {
   Users,
   Database,
   Lock,
+  Clock,
+  AlertTriangle,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -38,7 +41,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentAdminKey }) => {
   const [showNewKeyForm, setShowNewKeyForm] = useState(false);
   const [newKeyLabel, setNewKeyLabel] = useState('');
   const [newCustomKey, setNewCustomKey] = useState('');
-  const [newKeyPlan, setNewKeyPlan] = useState<'starter' | 'pro'>('pro');
+  const [newKeyPlan, setNewKeyPlan] = useState<'starter' | 'pro'>('starter');
+  const [newKeyDuration, setNewKeyDuration] = useState<number>(30);
   const [creatingKey, setCreatingKey] = useState(false);
   const [copiedKeyId, setCopiedKeyId] = useState<number | null>(null);
   const [actionMsg, setActionMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -78,27 +82,63 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentAdminKey }) => {
         label: newKeyLabel.trim(),
         customKey: newCustomKey.trim() || undefined,
         planType: newKeyPlan,
+        durationDays: newKeyDuration,
       });
 
       if (res.success && res.key) {
         setAccessKeys((prev) => [res.key!, ...prev]);
         setNewKeyLabel('');
         setNewCustomKey('');
+        setNewKeyDuration(30);
         setShowNewKeyForm(false);
         setActionMsg({
           type: 'success',
-          text: `🎉 Key created & synced with Supabase: ${res.key.key_code}`,
+          text: `New ${res.key.plan_type === 'starter' ? 'Starter (₹499/mo)' : 'Agency Pro (₹999/mo)'} access passkey created for ${res.key.label}!`,
         });
-        try {
-          confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
-        } catch (e) {}
+        confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 } });
       } else {
-        setActionMsg({ type: 'error', text: res.error || 'Failed to create key.' });
+        setActionMsg({ type: 'error', text: res.error || 'Failed to create access key' });
       }
     } catch (err: any) {
-      setActionMsg({ type: 'error', text: err.response?.data?.error || 'Failed to create key.' });
+      setActionMsg({
+        type: 'error',
+        text: err.response?.data?.error || 'Failed to generate key',
+      });
     } finally {
       setCreatingKey(false);
+    }
+  };
+
+  const handleExtendSubscription = async (id: number, label: string, days: number = 30) => {
+    try {
+      const res = await extendAccessKey(id, days);
+      if (res.success) {
+        setAccessKeys((prev) =>
+          prev.map((k) =>
+            k.id === id
+              ? {
+                  ...k,
+                  expires_at: res.expiresAt || null,
+                  is_active: 1,
+                  days_left:
+                    k.days_left !== null && k.days_left !== undefined && k.days_left > 0
+                      ? k.days_left + days
+                      : days,
+                }
+              : k
+          )
+        );
+        setActionMsg({
+          type: 'success',
+          text: `Subscription extended by +${days} days for "${label}"! New expiry: ${
+            res.expiresAt ? new Date(res.expiresAt).toLocaleDateString() : 'Active'
+          }`,
+        });
+      } else {
+        alert(res.error || 'Failed to extend subscription');
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to extend subscription');
     }
   };
 
@@ -133,7 +173,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentAdminKey }) => {
         );
         setActionMsg({
           type: 'success',
-          text: `Plan updated to ${planType === 'starter' ? 'Starter (₹199/mo • 40 msgs/day)' : 'Agency Pro (Unlimited)'}!`,
+          text: `Plan updated to ${planType === 'starter' ? 'Starter (₹499/mo • 40 msgs/day)' : 'Agency Pro (₹999/mo • Unlimited)'}!`,
         });
       }
     } catch (err: any) {
@@ -356,7 +396,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentAdminKey }) => {
                       : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white'
                   }`}
                 >
-                  <div className="font-bold text-xs">Starter Plan (₹199/mo)</div>
+                  <div className="font-bold text-xs">Starter Plan (₹499/mo)</div>
                   <div className="text-[11px] text-zinc-400 mt-0.5">1 WhatsApp • 1 Email • 40 Msgs Daily Limit</div>
                 </button>
 
@@ -370,10 +410,64 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentAdminKey }) => {
                   }`}
                 >
                   <div className="font-bold text-xs flex items-center gap-1.5">
-                    <span>Agency Pro Plan</span>
+                    <span>Agency Pro Plan (₹999/mo)</span>
                     <span className="px-1.5 py-0.2 rounded text-[9px] bg-white text-black font-mono font-bold">UNLIMITED</span>
                   </div>
                   <div className="text-[11px] text-zinc-400 mt-0.5">Multiple Accounts • Unlimited Msgs Daily</div>
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-1.5 md:col-span-2">
+              <label className="text-xs font-semibold text-zinc-300">
+                Subscription Validity Duration (Countdown Timer)
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setNewKeyDuration(30)}
+                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                    newKeyDuration === 30
+                      ? 'bg-zinc-900 border-white text-white shadow-md'
+                      : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  <div className="font-bold text-xs flex items-center gap-1.5">
+                    <Clock className="h-3.5 w-3.5 text-emerald-400" />
+                    <span>30 Days (1 Month)</span>
+                  </div>
+                  <div className="text-[10px] text-zinc-500 mt-0.5">Timer starts on client's 1st login</div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setNewKeyDuration(365)}
+                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                    newKeyDuration === 365
+                      ? 'bg-zinc-900 border-white text-white shadow-md'
+                      : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  <div className="font-bold text-xs flex items-center gap-1.5">
+                    <Clock className="h-3.5 w-3.5 text-blue-400" />
+                    <span>365 Days (1 Year)</span>
+                  </div>
+                  <div className="text-[10px] text-zinc-500 mt-0.5">Annual client pass</div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setNewKeyDuration(0)}
+                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                    newKeyDuration === 0
+                      ? 'bg-zinc-900 border-white text-white shadow-md'
+                      : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  <div className="font-bold text-xs flex items-center gap-1.5">
+                    <span>✨ Lifetime Pass</span>
+                  </div>
+                  <div className="text-[10px] text-zinc-500 mt-0.5">Never expires (Permanent)</div>
                 </button>
               </div>
             </div>
@@ -424,6 +518,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentAdminKey }) => {
                 <th className="py-3 px-4">License Passkey</th>
                 <th className="py-3 px-4">Client / Assigned To</th>
                 <th className="py-3 px-4">Subscription Plan</th>
+                <th className="py-3 px-4">Validity (Timer & Renew)</th>
                 <th className="py-3 px-4">Device Lock (1 User)</th>
                 <th className="py-3 px-4">Today's WhatsApp</th>
                 <th className="py-3 px-4">License Status</th>
@@ -476,12 +571,66 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentAdminKey }) => {
                           }`}
                         >
                           <option value="starter" className="bg-zinc-950 text-amber-300 font-bold">
-                            🥉 Starter (₹199 • 40/day)
+                            🥉 Starter (₹499 • 40/day)
                           </option>
                           <option value="pro" className="bg-zinc-950 text-emerald-300 font-bold">
-                            🥇 Agency Pro (Unlimited)
+                            🥇 Agency Pro (₹999 • Unlimited)
                           </option>
                         </select>
+                      )}
+                    </td>
+
+                    <td className="py-3 px-4 font-sans text-xs">
+                      {isAdminKey ? (
+                        <span className="text-zinc-500 font-mono text-[11px]">👑 Lifetime Admin</span>
+                      ) : key.expires_at ? (
+                        key.days_left !== null && key.days_left !== undefined && key.days_left > 0 ? (
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-400 font-mono">
+                              <Clock className="h-3 w-3 shrink-0" />
+                              <span>{key.days_left}d Left</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 font-mono">
+                              <span>Exp: {new Date(key.expires_at).toLocaleDateString()}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleExtendSubscription(key.id, key.label, 30)}
+                                className="px-1.5 py-0.5 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/20 text-[10px] font-medium transition-colors cursor-pointer"
+                                title="Add +30 Days on payment renewal"
+                              >
+                                +30d 🔄
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1 text-[11px] font-bold text-rose-400 font-mono animate-pulse">
+                              <AlertTriangle className="h-3 w-3 shrink-0" />
+                              <span>Expired</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 font-mono">
+                              <span>Exp: {new Date(key.expires_at).toLocaleDateString()}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleExtendSubscription(key.id, key.label, 30)}
+                                className="px-1.5 py-0.5 rounded bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 text-[10px] font-bold transition-colors cursor-pointer"
+                                title="Renew client with +30 days"
+                              >
+                                Renew +30d 🔄
+                              </button>
+                            </div>
+                          </div>
+                        )
+                      ) : key.duration_days && key.duration_days > 0 ? (
+                        <div className="space-y-0.5">
+                          <div className="text-[11px] font-mono font-medium text-amber-300 flex items-center gap-1">
+                            <Clock className="h-3 w-3 shrink-0" />
+                            <span>{key.duration_days}d Pass</span>
+                          </div>
+                          <div className="text-[10px] text-zinc-500 font-mono">Starts on 1st login</div>
+                        </div>
+                      ) : (
+                        <span className="text-zinc-400 font-mono text-[11px]">✨ Lifetime</span>
                       )}
                     </td>
 

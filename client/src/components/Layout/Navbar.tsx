@@ -6,6 +6,7 @@ import {
   ShieldCheck,
   AlertTriangle,
   Octagon,
+  Clock,
 } from 'lucide-react';
 import { toggleEmergencyKillSwitch } from '../../services/api';
 
@@ -17,6 +18,16 @@ interface NavbarProps {
   mockMode?: boolean;
   killSwitchActive?: boolean;
   onKillSwitchToggled?: (active: boolean) => void;
+  keyInfo?: {
+    id: number;
+    keyCode: string;
+    label: string;
+    isAdmin?: boolean;
+    planType?: string;
+    activatedAt?: string | null;
+    expiresAt?: string | null;
+    daysRemaining?: number | null;
+  } | null;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -27,6 +38,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   mockMode = false,
   killSwitchActive = false,
   onKillSwitchToggled,
+  keyInfo,
 }) => {
   const [togglingKillSwitch, setTogglingKillSwitch] = useState(false);
 
@@ -129,7 +141,35 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       {/* Right Controls */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2.5 sm:gap-3">
+        {/* Live Subscription Countdown Timer */}
+        {keyInfo?.isAdmin ? (
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-900 border border-zinc-750 text-[11px] font-bold text-white shadow-sm">
+            <span className="text-amber-400">👑</span>
+            <span>Super Admin</span>
+          </div>
+        ) : keyInfo?.daysRemaining !== undefined && keyInfo?.daysRemaining !== null ? (
+          <div
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[11px] font-mono font-bold shadow-sm transition-all ${
+              keyInfo.daysRemaining <= 5
+                ? 'bg-amber-500/10 border-amber-500/30 text-amber-300 animate-pulse'
+                : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+            }`}
+            title={`Active Plan: ${keyInfo.planType === 'starter' ? 'Starter (₹499/mo)' : 'Agency Pro (₹999/mo)'} • Expires: ${
+              keyInfo.expiresAt ? new Date(keyInfo.expiresAt).toLocaleDateString() : 'N/A'
+            }`}
+          >
+            <Clock className="h-3.5 w-3.5 shrink-0 text-current" />
+            <span>
+              {keyInfo.daysRemaining === 0 ? '⚠️ Expires Today' : `⏳ ${keyInfo.daysRemaining} Days Left`}
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-900 border border-zinc-800 text-[11px] text-zinc-300 font-medium">
+            <span>✨ Lifetime Pass</span>
+          </div>
+        )}
+
         {/* Guard Status Badge */}
         <div className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-900 border border-zinc-800 text-[11px] text-zinc-300 font-medium">
           <ShieldCheck className="h-3.5 w-3.5 text-white" />

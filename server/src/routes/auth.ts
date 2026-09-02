@@ -25,6 +25,9 @@ export interface AccessKeyRecord {
   bound_device_info?: string | null;
   bound_at?: string | null;
   device_lock_enabled?: number;
+  duration_days?: number | null;
+  activated_at?: string | null;
+  expires_at?: string | null;
   created_at: string;
   last_used_at?: string;
 }
@@ -115,6 +118,48 @@ router.post('/login', async (req: Request, res: Response) => {
       }
     }
 
+    // 4. Subscription Expiry & 30-Day Activation Countdown
+    if (!isAdmin) {
+      // If key is not activated yet, start the countdown clock on 1st login!
+      if (!record.activated_at) {
+        const duration = record.duration_days ?? 30;
+        if (duration > 0) {
+          await run(
+            "UPDATE access_keys SET activated_at = CURRENT_TIMESTAMP, expires_at = datetime('now', '+' || ? || ' days') WHERE id = ?",
+            [duration, record.id]
+          );
+        } else {
+          // Lifetime pass (0 days)
+          await run("UPDATE access_keys SET activated_at = CURRENT_TIMESTAMP WHERE id = ?", [record.id]);
+        }
+        const updated = await get<AccessKeyRecord>('SELECT activated_at, expires_at FROM access_keys WHERE id = ?', [record.id]);
+        if (updated) {
+          record.activated_at = updated.activated_at;
+          record.expires_at = updated.expires_at;
+        }
+      }
+
+      // Check if subscription has expired
+      if (record.expires_at) {
+        const expiresTimestamp = new Date(record.expires_at).getTime();
+        if (Date.now() > expiresTimestamp) {
+          const formattedDate = new Date(record.expires_at).toLocaleDateString();
+          return res.status(403).json({
+            success: false,
+            expired: true,
+            error: `❌ Subscription Expired: Your passkey expired on ${formattedDate}. Please contact your administrator to renew your plan.`,
+          });
+        }
+      }
+    }
+
+    // Calculate days remaining
+    let daysRemaining: number | null = null;
+    if (record.expires_at) {
+      const diffMs = new Date(record.expires_at).getTime() - Date.now();
+      daysRemaining = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+    }
+
     // Update last_used_at timestamp
     await run(
       'UPDATE access_keys SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?',
@@ -141,6 +186,10 @@ router.post('/login', async (req: Request, res: Response) => {
         keyCode: record.key_code,
         label: record.label,
         isAdmin,
+        planType: record.plan_type || 'starter',
+        activatedAt: record.activated_at,
+        expiresAt: record.expires_at,
+        daysRemaining,
       },
     });
   } catch (err: any) {
@@ -167,7 +216,7 @@ router.post('/verify', async (req: Request, res: Response) => {
     const cleanKey = accessKey.trim().toUpperCase();
 
     let record = await get<AccessKeyRecord>(
-      'SELECT id, key_code, label, is_active, is_admin, bound_device_id, bound_device_info, device_lock_enabled FROM access_keys WHERE UPPER(key_code) = ? AND is_active = 1',
+      'SELECT id, key_code, label, is_active, is_admin, plan_type, bound_device_id, bound_device_info, device_lock_enabled, activated_at, expires_at, duration_days FROM access_keys WHERE UPPER(key_code) = ? AND is_active = 1',
       [cleanKey]
     );
 
@@ -207,6 +256,27 @@ router.post('/verify', async (req: Request, res: Response) => {
       }
     }
 
+    // Check subscription expiration
+    if (!isAdmin && record.expires_at) {
+      const expiresTimestamp = new Date(record.expires_at).getTime();
+      if (Date.now() > expiresTimestamp) {
+        const formattedDate = new Date(record.expires_at).toLocaleDateString();
+        return res.status(403).json({
+          success: false,
+          valid: false,
+          expired: true,
+          error: `❌ Subscription Expired: Your passkey expired on ${formattedDate}. Please contact administrator to renew.`,
+        });
+      }
+    }
+
+    // Calculate days remaining
+    let daysRemaining: number | null = null;
+    if (record.expires_at) {
+      const diffMs = new Date(record.expires_at).getTime() - Date.now();
+      daysRemaining = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+    }
+
     return res.json({
       success: true,
       valid: true,
@@ -215,6 +285,10 @@ router.post('/verify', async (req: Request, res: Response) => {
         keyCode: record.key_code,
         label: record.label,
         isAdmin,
+        planType: record.plan_type || 'starter',
+        activatedAt: record.activated_at,
+        expiresAt: record.expires_at,
+        daysRemaining,
       },
     });
   } catch (err: any) {
@@ -244,6 +318,13 @@ router.get('/keys', async (_req: Request, res: Response) => {
         k.bound_device_info,
         k.bound_at,
         COALESCE(k.device_lock_enabled, 1) as device_lock_enabled,
+        COALESCE(k.duration_days, 30) as duration_days,
+        k.activated_at,
+        k.expires_at,
+        CASE 
+          WHEN k.expires_at IS NULL THEN NULL 
+          ELSE ROUND(JULIANDAY(k.expires_at) - JULIANDAY('now')) 
+        END as days_left,
         k.created_at, 
         k.last_used_at,
         COALESCE((SELECT count FROM daily_usage WHERE UPPER(daily_usage.key_code) = UPPER(k.key_code) AND channel = 'whatsapp' AND usage_date = DATE('now')), 0) as today_whatsapp_count
@@ -263,13 +344,14 @@ router.get('/keys', async (_req: Request, res: Response) => {
  */
 router.post('/keys', async (req: Request, res: Response) => {
   try {
-    const { label, customKey, planType = 'pro' } = req.body;
+    const { label, customKey, planType = 'pro', durationDays = 30 } = req.body;
 
     const keyLabel = (label || 'Client Workspace').trim();
     const keyCode = (customKey || generateRandomKey()).trim().toUpperCase();
     const dailyLimit = planType === 'starter' ? 40 : 999999;
     const maxWhatsapp = planType === 'starter' ? 1 : 10;
     const maxEmail = planType === 'starter' ? 1 : 10;
+    const duration = Number(durationDays) >= 0 ? Number(durationDays) : 30;
 
     const existing = await get<AccessKeyRecord>(
       'SELECT id FROM access_keys WHERE UPPER(key_code) = ?',
@@ -284,8 +366,8 @@ router.post('/keys', async (req: Request, res: Response) => {
     }
 
     const result = await run(
-      'INSERT INTO access_keys (key_code, label, is_active, plan_type, daily_limit, max_whatsapp_accounts, max_email_accounts) VALUES (?, ?, 1, ?, ?, ?, ?)',
-      [keyCode, keyLabel, planType, dailyLimit, maxWhatsapp, maxEmail]
+      'INSERT INTO access_keys (key_code, label, is_active, plan_type, daily_limit, max_whatsapp_accounts, max_email_accounts, duration_days) VALUES (?, ?, 1, ?, ?, ?, ?, ?)',
+      [keyCode, keyLabel, planType, dailyLimit, maxWhatsapp, maxEmail, duration]
     );
 
     const newKey = await get<AccessKeyRecord>(
@@ -364,7 +446,7 @@ router.patch('/keys/:id/plan', async (req: Request, res: Response) => {
 
     return res.json({
       success: true,
-      message: `Client plan updated to ${planType === 'starter' ? 'Starter (₹199/mo)' : 'Agency Pro (Unlimited)'}.`,
+      message: `Client plan updated to ${planType === 'starter' ? 'Starter (₹499/mo)' : 'Agency Pro (₹999/mo • Unlimited)'}.`,
     });
   } catch (err: any) {
     console.error('[Auth Error] Update plan failure:', err);
@@ -396,6 +478,45 @@ router.post('/keys/:id/reset-device', async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error('[Auth Error] Reset device failure:', err);
     return res.status(500).json({ success: false, error: 'Failed to reset device binding.' });
+  }
+});
+
+/**
+ * POST /api/auth/keys/:id/extend
+ * Super Admin endpoint: Extend subscription by +30 days (or specified days)
+ */
+router.post('/keys/:id/extend', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { days = 30 } = req.body;
+
+    const targetKey = await get<AccessKeyRecord>('SELECT * FROM access_keys WHERE id = ?', [id]);
+    if (!targetKey) {
+      return res.status(404).json({ success: false, error: 'Access key not found.' });
+    }
+
+    // If key has an unexpired future date, add +days to that date.
+    // If key is expired (in past) or null, start +days from now!
+    let baseSql = "datetime('now', '+' || ? || ' days')";
+    if (targetKey.expires_at && new Date(targetKey.expires_at).getTime() > Date.now()) {
+      baseSql = "datetime(expires_at, '+' || ? || ' days')";
+    }
+
+    await run(
+      `UPDATE access_keys SET expires_at = ${baseSql}, is_active = 1 WHERE id = ?`,
+      [days, id]
+    );
+
+    const updated = await get<AccessKeyRecord>('SELECT expires_at FROM access_keys WHERE id = ?', [id]);
+
+    return res.json({
+      success: true,
+      message: `Subscription extended by +${days} days for "${targetKey.label}". New expiry: ${updated?.expires_at ? new Date(updated.expires_at).toLocaleDateString() : 'Active'}.`,
+      expiresAt: updated?.expires_at,
+    });
+  } catch (err: any) {
+    console.error('[Auth Error] Extend key failure:', err);
+    return res.status(500).json({ success: false, error: 'Failed to extend subscription.' });
   }
 });
 

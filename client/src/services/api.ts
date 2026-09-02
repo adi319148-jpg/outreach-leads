@@ -333,7 +333,23 @@ export const loginWithAccessKey = async (
   accessKey: string,
   deviceId?: string,
   deviceInfo?: string
-): Promise<{ success: boolean; token?: string; error?: string; deviceLocked?: boolean; keyInfo?: { id: number; keyCode: string; label: string } }> => {
+): Promise<{
+  success: boolean;
+  token?: string;
+  error?: string;
+  deviceLocked?: boolean;
+  expired?: boolean;
+  keyInfo?: {
+    id: number;
+    keyCode: string;
+    label: string;
+    isAdmin?: boolean;
+    planType?: string;
+    activatedAt?: string | null;
+    expiresAt?: string | null;
+    daysRemaining?: number | null;
+  };
+}> => {
   const res = await api.post('/auth/login', { accessKey, deviceId, deviceInfo });
   return res.data;
 };
@@ -341,7 +357,23 @@ export const loginWithAccessKey = async (
 export const verifyAccessKey = async (
   accessKey: string,
   deviceId?: string
-): Promise<{ success: boolean; valid: boolean; error?: string; deviceMismatch?: boolean; keyInfo?: { id: number; keyCode: string; label: string } }> => {
+): Promise<{
+  success: boolean;
+  valid: boolean;
+  error?: string;
+  deviceMismatch?: boolean;
+  expired?: boolean;
+  keyInfo?: {
+    id: number;
+    keyCode: string;
+    label: string;
+    isAdmin?: boolean;
+    planType?: string;
+    activatedAt?: string | null;
+    expiresAt?: string | null;
+    daysRemaining?: number | null;
+  };
+}> => {
   const res = await api.post('/auth/verify', { accessKey, deviceId });
   return res.data;
 };
@@ -355,6 +387,7 @@ export const createAccessKey = async (payload: {
   label?: string;
   customKey?: string;
   planType?: 'starter' | 'pro';
+  durationDays?: number;
 }): Promise<{ success: boolean; message: string; key?: import('../types').AccessKeyInfo; error?: string }> => {
   const res = await api.post('/auth/keys', payload);
   return res.data;
@@ -380,6 +413,14 @@ export const resetDeviceBinding = async (
   id: number
 ): Promise<{ success: boolean; message: string; error?: string }> => {
   const res = await api.post(`/auth/keys/${id}/reset-device`);
+  return res.data;
+};
+
+export const extendAccessKey = async (
+  id: number,
+  days: number = 30
+): Promise<{ success: boolean; message: string; expiresAt?: string; error?: string }> => {
+  const res = await api.post(`/auth/keys/${id}/extend`, { days });
   return res.data;
 };
 

@@ -80,14 +80,14 @@ export const PricingSection: React.FC<PricingSectionProps> = ({ onSelectPlan }) 
             <div className="border-y border-zinc-850 py-5">
               <div className="flex items-baseline gap-2">
                 <span className="text-4xl sm:text-5xl font-black text-white tracking-tight">
-                  {billingCycle === 'monthly' ? '₹199' : '₹999'}
+                  {billingCycle === 'monthly' ? '₹499' : '₹2,499'}
                 </span>
                 <span className="text-xs text-zinc-400 font-medium">
                   {billingCycle === 'monthly' ? '/ month' : '/ 1-year pass'}
                 </span>
               </div>
               <p className="text-[11px] text-emerald-400 font-mono mt-1">
-                {billingCycle === 'monthly' ? '● Less than a coffee • Cancel anytime' : '● Single payment • 12 months access'}
+                {billingCycle === 'monthly' ? '● Safe steady outreach • Cancel anytime' : '● Single payment • 12 months full access'}
               </p>
             </div>
 
@@ -174,7 +174,7 @@ export const PricingSection: React.FC<PricingSectionProps> = ({ onSelectPlan }) 
             <div className="border-y border-zinc-750 py-5">
               <div className="flex items-baseline gap-2">
                 <span className="text-4xl sm:text-5xl font-black text-white tracking-tight">
-                  {billingCycle === 'monthly' ? '₹499' : '₹1,999'}
+                  {billingCycle === 'monthly' ? '₹999' : '₹3,999'}
                 </span>
                 <span className="text-xs text-zinc-400 font-medium">
                   {billingCycle === 'monthly' ? '/ month' : '/ lifetime access'}

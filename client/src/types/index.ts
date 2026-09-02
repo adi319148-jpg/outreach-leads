@@ -239,6 +239,10 @@ export interface AccessKeyInfo {
   bound_device_info?: string | null;
   bound_at?: string | null;
   device_lock_enabled?: number;
+  duration_days?: number;
+  activated_at?: string | null;
+  expires_at?: string | null;
+  days_left?: number | null;
   created_at: string;
   last_used_at?: string;
 }

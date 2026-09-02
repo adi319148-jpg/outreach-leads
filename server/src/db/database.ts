@@ -183,6 +183,9 @@ export async function initDatabase() {
   await addColumnIfNotExists('access_keys', 'bound_device_info TEXT', 'bound_device_info');
   await addColumnIfNotExists('access_keys', 'bound_at DATETIME', 'bound_at');
   await addColumnIfNotExists('access_keys', 'device_lock_enabled INTEGER DEFAULT 1', 'device_lock_enabled');
+  await addColumnIfNotExists('access_keys', 'duration_days INTEGER DEFAULT 30', 'duration_days');
+  await addColumnIfNotExists('access_keys', 'activated_at DATETIME', 'activated_at');
+  await addColumnIfNotExists('access_keys', 'expires_at DATETIME', 'expires_at');
 
   await run(`
     CREATE TABLE IF NOT EXISTS daily_usage (
