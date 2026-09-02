@@ -38,14 +38,22 @@ import {
   Users,
   Phone,
   Layers,
+  Lock,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface SettingsProps {
   onSettingsSaved: () => void;
+  planType?: string;
+  isAdmin?: boolean;
 }
 
-export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved }) => {
+export const Settings: React.FC<SettingsProps> = ({
+  onSettingsSaved,
+  planType = 'starter',
+  isAdmin = false,
+}) => {
+  const isProOrAdmin = isAdmin || planType === 'pro';
   const [settings, setSettings] = useState<AppSettings>({
     googlePlacesApiKey: '',
     youtubeApiKey: '',
@@ -479,20 +487,30 @@ export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved }) => {
               <BookOpen className="h-3 w-3" />
               <span>Guide</span>
             </button>
-            <button
-              type="button"
-              onClick={() => setShowAddAccountModal(true)}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white hover:bg-zinc-200 text-zinc-950 text-xs font-bold transition-all shadow"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              <span>+ Add WhatsApp Number</span>
-            </button>
+            {isProOrAdmin ? (
+              <button
+                type="button"
+                onClick={() => setShowAddAccountModal(true)}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-white hover:bg-zinc-200 text-zinc-950 text-xs font-bold transition-all shadow cursor-pointer"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>+ Add WhatsApp Number</span>
+              </button>
+            ) : (
+              <div
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-zinc-900 border border-zinc-800 text-amber-400 text-xs font-semibold select-none shadow-sm"
+                title="Starter plan (₹499) allows 1 WhatsApp number. Upgrade to Agency Pro (₹999) for multi-account round-robin dispatch."
+              >
+                <Lock className="h-3.5 w-3.5 text-amber-400" />
+                <span>1 Account Limit (Starter)</span>
+              </div>
+            )}
           </div>
         </div>
 
         {/* Account Selector Tabs */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1">
-          {waAccounts.map((acc) => {
+          {(isProOrAdmin ? waAccounts : waAccounts.slice(0, 1)).map((acc) => {
             const isSelected = acc.id === selectedSessionId;
             const isConnected = acc.status === 'connected';
             return (
@@ -833,6 +851,15 @@ export const Settings: React.FC<SettingsProps> = ({ onSettingsSaved }) => {
             </div>
 
             <div className="flex items-center gap-2">
+              {!isProOrAdmin && (
+                <div
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-800 text-amber-400 text-xs font-semibold select-none shadow-sm"
+                  title="Starter plan includes 1 sender inbox with 40 daily messages cap. Upgrade to Agency Pro (₹999) for multi-inbox rotation & unlimited messaging."
+                >
+                  <Lock className="h-3.5 w-3.5 text-amber-400" />
+                  <span>1 Sender Inbox (40/day)</span>
+                </div>
+              )}
               <button
                 type="button"
                 onClick={() => openGuideFor('gmail_smtp')}

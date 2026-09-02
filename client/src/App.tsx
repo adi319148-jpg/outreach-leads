@@ -305,7 +305,11 @@ export const App: React.FC = () => {
 
             {/* Settings */}
             {currentTab === 'settings' && (
-              <Settings onSettingsSaved={fetchStats} />
+              <Settings
+                onSettingsSaved={fetchStats}
+                planType={currentKeyInfo?.planType}
+                isAdmin={isAdmin}
+              />
             )}
           </ErrorBoundary>
         </main>
