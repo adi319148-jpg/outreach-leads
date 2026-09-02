@@ -279,14 +279,6 @@ export const getWhatsAppStatus = async (sessionId: string = 'account_1'): Promis
     if (res.data && typeof res.data === 'object' && res.data.status) return res.data;
   } catch {}
 
-  try {
-    const cached = localStorage.getItem(`wa_state_${sessionId}`);
-    if (cached) {
-      const parsed = JSON.parse(cached);
-      if (parsed && parsed.status) return parsed;
-    }
-  } catch {}
-
   return {
     id: sessionId,
     name: 'Primary WhatsApp',
@@ -311,11 +303,6 @@ export const connectWhatsAppAccount = async (
     console.error('Failed to contact WhatsApp backend:', err);
   }
 
-  const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-  const errorMsg = isLocal
-    ? 'Node.js Baileys server is starting. Please ensure "node server/dist/index.js" or "Live-Preview-No-Install.bat" is running on port 3001.'
-    : 'Vercel is a static host. To pair your real WhatsApp phone, run "Live-Preview-No-Install.bat" locally or link your live Cloud Backend URL below.';
-
   return {
     id: sessionId,
     name: accountName || 'Primary WhatsApp',
@@ -323,7 +310,7 @@ export const connectWhatsAppAccount = async (
     qrCodeDataUrl: null,
     userPhone: null,
     userName: null,
-    errorMessage: errorMsg,
+    errorMessage: 'Backend connection required. Please run your backend to generate real WhatsApp QR code.',
     lastActive: null,
   };
 };
@@ -739,7 +726,7 @@ export const loginWithAccessKey = async (
       return { success: false, error: 'License key has been deactivated by administrator.' };
     }
 
-    if (matched.device_lock_enabled !== 0 && matched.bound_device_id && deviceId) {
+    if (matched.device_lock_enabled === 1 && matched.bound_device_id && deviceId) {
       if (matched.bound_device_id !== deviceId) {
         return {
           success: false,
@@ -747,7 +734,7 @@ export const loginWithAccessKey = async (
           error: `🚫 Device mismatch: This passkey is registered to another device (${matched.bound_device_info || 'Bound Device'}).`,
         };
       }
-    } else if (deviceId && !matched.bound_device_id) {
+    } else if (matched.device_lock_enabled === 1 && deviceId && !matched.bound_device_id) {
       matched.bound_device_id = deviceId;
       matched.bound_device_info = deviceInfo || 'Registered Device';
       saveLocalKeys(localKeys);

@@ -130,6 +130,11 @@ export const Settings: React.FC<SettingsProps> = ({
   };
 
   useEffect(() => {
+    try {
+      Object.keys(localStorage).forEach((key) => {
+        if (key.startsWith('wa_state_')) localStorage.removeItem(key);
+      });
+    } catch {}
     loadSettings();
     loadWhatsAppStatus();
 
