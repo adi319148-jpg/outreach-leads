@@ -40,13 +40,15 @@ export const RepliesInbox: React.FC<RepliesInboxProps> = ({ onRepliesUpdated }) 
     if (!silent) setLoading(true);
     try {
       const data = await getInboundReplies();
-      setReplies(data.replies);
+      const safeReplies = Array.isArray(data?.replies) ? data.replies : [];
+      setReplies(safeReplies);
 
-      if (data.replies.length > 0 && selectedReplyId === null) {
-        setSelectedReplyId(data.replies[0].id);
+      if (safeReplies.length > 0 && selectedReplyId === null) {
+        setSelectedReplyId(safeReplies[0].id);
       }
     } catch (err) {
       console.error('Failed to load inbound replies:', err);
+      setReplies([]);
     } finally {
       if (!silent) setLoading(false);
     }
@@ -57,12 +59,12 @@ export const RepliesInbox: React.FC<RepliesInboxProps> = ({ onRepliesUpdated }) 
 
     const timer = setInterval(() => {
       fetchReplies(true);
-    }, 3000);
+    }, 5000);
 
     return () => clearInterval(timer);
   }, []);
 
-  const activeReply = replies.find((r) => r.id === selectedReplyId) || replies[0];
+  const activeReply = (replies || []).find((r) => r.id === selectedReplyId) || (replies || [])[0];
 
   const handleSelectReply = async (reply: InboundReply) => {
     setSelectedReplyId(reply.id);

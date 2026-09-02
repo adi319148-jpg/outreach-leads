@@ -96,10 +96,11 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
     setLoading(true);
     try {
       const res = await getLeads({ inCampaign: true, limit: 200 });
-      setLeads(res.leads);
+      const safeLeads = Array.isArray(res?.leads) ? res.leads : [];
+      setLeads(safeLeads);
 
-      if (selectedIds.length === 0 && res.leads.length > 0) {
-        setSelectedIds(res.leads.map((l) => l.id));
+      if (selectedIds.length === 0 && safeLeads.length > 0) {
+        setSelectedIds(safeLeads.map((l) => l.id));
       }
 
       try {
@@ -109,16 +110,23 @@ export const BulkCampaign: React.FC<BulkCampaignProps> = ({ onCampaignUpdated })
         }
       } catch (e) {}
 
-      const wa = await getWhatsAppStatus();
-      setWaState(wa);
+      try {
+        const wa = await getWhatsAppStatus();
+        if (wa && typeof wa === 'object') setWaState(wa);
+      } catch (e) {}
 
-      const bStatus = await getWhatsAppBatchStatus();
-      setBatchProgress(bStatus);
-      if (bStatus.isRunning) {
-        startBatchPolling();
-      }
+      try {
+        const bStatus = await getWhatsAppBatchStatus();
+        if (bStatus && typeof bStatus === 'object') {
+          setBatchProgress(bStatus);
+          if (bStatus.isRunning) {
+            startBatchPolling();
+          }
+        }
+      } catch (e) {}
     } catch (err) {
       console.error('Failed to load campaign leads:', err);
+      setLeads([]);
     } finally {
       setLoading(false);
     }

@@ -13,6 +13,7 @@ import { AdminPanel } from './components/AdminPanel/AdminPanel';
 import { UpdateBanner } from './components/Layout/UpdateBanner';
 import { LoginPage } from './components/Auth/LoginPage';
 import { LandingPage } from './components/Landing/LandingPage';
+import { ErrorBoundary } from './components/Common/ErrorBoundary';
 import { getDashboardStats, getLeads, getInboundReplies, getSettings, checkForAppUpdates, verifyAccessKey } from './services/api';
 import { DashboardStats, AppUpdateInfo, AccessKeyInfo } from './types';
 import { getDeviceId } from './utils/deviceFingerprint';
@@ -186,92 +187,94 @@ export const App: React.FC = () => {
 
         {/* Scrollable View Container */}
         <main className="flex-1 overflow-y-auto bg-[#09090b]">
-          {currentTab === 'dashboard' && (
-            <Dashboard
-              stats={stats}
-              loading={loadingStats}
-              onSelectTab={(tab) => setCurrentTab(tab)}
-            />
-          )}
+          <ErrorBoundary key={currentTab}>
+            {currentTab === 'dashboard' && (
+              <Dashboard
+                stats={stats}
+                loading={loadingStats}
+                onSelectTab={(tab) => setCurrentTab(tab)}
+              />
+            )}
 
-          {/* Super Admin Console (Admin Only) */}
-          {currentTab === 'admin_panel' && (
-            <AdminPanel
-              currentAdminKey={currentKeyInfo?.keyCode}
-              onSelectTab={(tab) => setCurrentTab(tab)}
-            />
-          )}
+            {/* Super Admin Console (Admin Only) */}
+            {currentTab === 'admin_panel' && (
+              <AdminPanel
+                currentAdminKey={currentKeyInfo?.keyCode}
+                onSelectTab={(tab) => setCurrentTab(tab)}
+              />
+            )}
 
-          {/* Live Inbound Replies Inbox */}
-          {currentTab === 'inbox' && (
-            <RepliesInbox onRepliesUpdated={fetchStats} />
-          )}
+            {/* Live Inbound Replies Inbox */}
+            {currentTab === 'inbox' && (
+              <RepliesInbox onRepliesUpdated={fetchStats} />
+            )}
 
-          {/* Bulk Mass Campaign Hub */}
-          {currentTab === 'bulk_campaign' && (
-            <BulkCampaign onCampaignUpdated={fetchStats} />
-          )}
+            {/* Bulk Mass Campaign Hub */}
+            {currentTab === 'bulk_campaign' && (
+              <BulkCampaign onCampaignUpdated={fetchStats} />
+            )}
 
-          {/* Business (Google Maps) Hub */}
-          {currentTab === 'places_search' && (
-            <PlacesSearch
-              onLeadsSaved={() => {
-                fetchStats();
-                setCurrentTab('places_queue');
-              }}
-              onOpenCampaign={() => setCurrentTab('bulk_campaign')}
-              onOpenSettings={() => setCurrentTab('settings')}
-            />
-          )}
+            {/* Business (Google Maps) Hub */}
+            {currentTab === 'places_search' && (
+              <PlacesSearch
+                onLeadsSaved={() => {
+                  fetchStats();
+                  setCurrentTab('places_queue');
+                }}
+                onOpenCampaign={() => setCurrentTab('bulk_campaign')}
+                onOpenSettings={() => setCurrentTab('settings')}
+              />
+            )}
 
-          {currentTab === 'places_crm' && (
-            <LeadsCRM
-              sourcePreset="google_places"
-              onLeadsUpdated={fetchStats}
-              onOpenQueue={() => setCurrentTab('places_queue')}
-              onOpenCampaign={() => setCurrentTab('bulk_campaign')}
-            />
-          )}
+            {currentTab === 'places_crm' && (
+              <LeadsCRM
+                sourcePreset="google_places"
+                onLeadsUpdated={fetchStats}
+                onOpenQueue={() => setCurrentTab('places_queue')}
+                onOpenCampaign={() => setCurrentTab('bulk_campaign')}
+              />
+            )}
 
-          {currentTab === 'places_queue' && (
-            <PitchQueue
-              sourcePreset="google_places"
-              onQueueUpdated={fetchStats}
-            />
-          )}
+            {currentTab === 'places_queue' && (
+              <PitchQueue
+                sourcePreset="google_places"
+                onQueueUpdated={fetchStats}
+              />
+            )}
 
-          {/* YouTube Creators Hub */}
-          {currentTab === 'youtube_search' && (
-            <YoutubeSearch
-              onLeadsSaved={() => {
-                fetchStats();
-                setCurrentTab('youtube_queue');
-              }}
-              onOpenCampaign={() => setCurrentTab('bulk_campaign')}
-              onOpenSettings={() => setCurrentTab('settings')}
-            />
-          )}
+            {/* YouTube Creators Hub */}
+            {currentTab === 'youtube_search' && (
+              <YoutubeSearch
+                onLeadsSaved={() => {
+                  fetchStats();
+                  setCurrentTab('youtube_queue');
+                }}
+                onOpenCampaign={() => setCurrentTab('bulk_campaign')}
+                onOpenSettings={() => setCurrentTab('settings')}
+              />
+            )}
 
-          {currentTab === 'youtube_crm' && (
-            <LeadsCRM
-              sourcePreset="youtube"
-              onLeadsUpdated={fetchStats}
-              onOpenQueue={() => setCurrentTab('youtube_queue')}
-              onOpenCampaign={() => setCurrentTab('bulk_campaign')}
-            />
-          )}
+            {currentTab === 'youtube_crm' && (
+              <LeadsCRM
+                sourcePreset="youtube"
+                onLeadsUpdated={fetchStats}
+                onOpenQueue={() => setCurrentTab('youtube_queue')}
+                onOpenCampaign={() => setCurrentTab('bulk_campaign')}
+              />
+            )}
 
-          {currentTab === 'youtube_queue' && (
-            <PitchQueue
-              sourcePreset="youtube"
-              onQueueUpdated={fetchStats}
-            />
-          )}
+            {currentTab === 'youtube_queue' && (
+              <PitchQueue
+                sourcePreset="youtube"
+                onQueueUpdated={fetchStats}
+              />
+            )}
 
-          {/* Settings */}
-          {currentTab === 'settings' && (
-            <Settings onSettingsSaved={fetchStats} />
-          )}
+            {/* Settings */}
+            {currentTab === 'settings' && (
+              <Settings onSettingsSaved={fetchStats} />
+            )}
+          </ErrorBoundary>
         </main>
       </div>
     </div>
