@@ -18,6 +18,18 @@ import { getDashboardStats, getLeads, getInboundReplies, getSettings, checkForAp
 import { DashboardStats, AppUpdateInfo, AccessKeyInfo } from './types';
 import { getDeviceId } from './utils/deviceFingerprint';
 
+export const isMasterAdminKey = (keyCode?: string | null): boolean => {
+  if (!keyCode) return false;
+  const k = keyCode.trim().toUpperCase();
+  return (
+    k === 'OUTREACH-PRO-2025' ||
+    k === '@NOVA0511' ||
+    k === 'NOVA0511' ||
+    k === 'ADMIN2025' ||
+    k === 'OUTREACH-VIP-2025'
+  );
+};
+
 export const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [showLoginGate, setShowLoginGate] = useState<boolean>(false);
@@ -39,6 +51,16 @@ export const App: React.FC = () => {
   const [loadingStats, setLoadingStats] = useState(true);
   const [updateInfo, setUpdateInfo] = useState<AppUpdateInfo | null>(null);
 
+  // Strict Admin authorization check: Only master owner passkeys can be admin
+  const isAdmin = isMasterAdminKey(currentKeyInfo?.keyCode);
+
+  // Security guard: If a non-admin client is on admin_panel, instantly force to dashboard
+  useEffect(() => {
+    if (!isAdmin && currentTab === 'admin_panel') {
+      setCurrentTab('dashboard');
+    }
+  }, [isAdmin, currentTab]);
+
   // Authentication check on mount
   useEffect(() => {
     const savedKey = localStorage.getItem('outreach_access_key') || sessionStorage.getItem('outreach_access_key');
@@ -51,7 +73,12 @@ export const App: React.FC = () => {
       .then((res) => {
         if (res.success && res.valid) {
           setIsAuthenticated(true);
-          if (res.keyInfo) setCurrentKeyInfo(res.keyInfo);
+          if (res.keyInfo) {
+            setCurrentKeyInfo({
+              ...res.keyInfo,
+              isAdmin: isMasterAdminKey(res.keyInfo.keyCode),
+            });
+          }
           fetchStats();
         } else {
           localStorage.removeItem('outreach_access_key');
@@ -67,9 +94,14 @@ export const App: React.FC = () => {
       });
   }, []);
 
-  const handleLoginSuccess = (keyInfo: { id: number; keyCode: string; label: string }) => {
-    setCurrentKeyInfo(keyInfo);
+  const handleLoginSuccess = (keyInfo: any) => {
+    const isOwnerAdmin = isMasterAdminKey(keyInfo?.keyCode);
+    setCurrentKeyInfo({
+      ...keyInfo,
+      isAdmin: isOwnerAdmin,
+    });
     setIsAuthenticated(true);
+    setCurrentTab('dashboard'); // Always reset tab on login to prevent leaking previous tab!
     fetchStats();
   };
 
@@ -80,6 +112,7 @@ export const App: React.FC = () => {
     sessionStorage.removeItem('outreach_session_token');
     setIsAuthenticated(false);
     setCurrentKeyInfo(null);
+    setCurrentTab('dashboard'); // Clean reset tab on logout
   };
 
   const fetchStats = async () => {
@@ -167,7 +200,7 @@ export const App: React.FC = () => {
         youtubeQueueCount={stats?.youtubeCount || 0}
         placesTotalLeads={stats?.placesCount || 0}
         youtubeTotalLeads={stats?.youtubeCount || 0}
-        isAdmin={Boolean(currentKeyInfo?.isAdmin)}
+        isAdmin={isAdmin}
         onLogout={handleLogout}
       />
 
@@ -182,7 +215,7 @@ export const App: React.FC = () => {
           mockMode={false}
           killSwitchActive={killSwitchActive}
           onKillSwitchToggled={(active) => setKillSwitchActive(active)}
-          keyInfo={currentKeyInfo}
+          keyInfo={currentKeyInfo ? { ...currentKeyInfo, isAdmin } : null}
         />
 
         {/* Scrollable View Container */}
@@ -197,7 +230,7 @@ export const App: React.FC = () => {
             )}
 
             {/* Super Admin Console (Admin Only) */}
-            {currentTab === 'admin_panel' && (
+            {currentTab === 'admin_panel' && isAdmin && (
               <AdminPanel
                 currentAdminKey={currentKeyInfo?.keyCode}
                 onSelectTab={(tab) => setCurrentTab(tab)}
