@@ -244,7 +244,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
                     setAccessKey(e.target.value);
                     if (errorMsg) setErrorMsg(null);
                   }}
-                  placeholder="ENTER PASSKEY OR EMAIL (e.g. @NOVA0511 or user@email.com)..."
+                  placeholder="ENTER YOUR PASSKEY OR EMAIL..."
                   autoFocus
                   className="w-full pl-10 pr-10 py-3 rounded-xl bg-zinc-950 border border-zinc-800 text-white font-mono text-xs placeholder:text-zinc-600 focus:border-white focus:ring-1 focus:ring-white transition-all tracking-wider"
                 />
