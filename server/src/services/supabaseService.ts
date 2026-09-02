@@ -1,12 +1,13 @@
-﻿import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { getSetting, setSetting } from './settingsService';
 
+const DEFAULT_SUPABASE_URL = 'https://bryrrgzbxggmxtelscyo.supabase.co';
 const DEFAULT_SUPABASE_KEY = 'sb_publishable_itQcKFQriTCsBd4yG1CYVA_nNd2EWkP';
 
 let supabaseInstance: SupabaseClient | null = null;
 
 export async function getSupabaseClient(): Promise<SupabaseClient | null> {
-  const url = (await getSetting('supabaseUrl')) || process.env.SUPABASE_URL || '';
+  const url = (await getSetting('supabaseUrl')) || process.env.SUPABASE_URL || DEFAULT_SUPABASE_URL;
   const key = (await getSetting('supabaseKey')) || process.env.SUPABASE_KEY || DEFAULT_SUPABASE_KEY;
 
   if (!url || !url.startsWith('http')) {
