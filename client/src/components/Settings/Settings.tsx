@@ -39,6 +39,7 @@ import {
   Phone,
   Layers,
   Lock,
+  AlertTriangle,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -613,6 +614,57 @@ export const Settings: React.FC<SettingsProps> = ({
                   </div>
                 </div>
               )}
+
+              {/* Status or Backend Connection Error */}
+              {waState?.errorMessage && (
+                <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-start gap-2.5">
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400 mt-0.5" />
+                  <div className="space-y-1">
+                    <span className="font-bold">Real WhatsApp Pairing Engine Notice:</span>
+                    <p className="text-zinc-300 text-[11px] leading-relaxed">{waState.errorMessage}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Cloud / Local Backend Server Connection */}
+              <div className="p-3.5 rounded-xl bg-zinc-900/60 border border-zinc-800 text-xs text-zinc-300 space-y-2">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <Layers className="h-3.5 w-3.5 text-zinc-400" />
+                    <span className="font-semibold text-white">Live Node.js Backend Server URL (Optional):</span>
+                  </div>
+                  <span className="text-[10px] text-zinc-500 font-mono">
+                    Current: {localStorage.getItem('outreach_backend_url') || (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? 'http://localhost:3001' : 'Direct Vercel Host')}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <input
+                    type="text"
+                    defaultValue={localStorage.getItem('outreach_backend_url') || ''}
+                    placeholder="e.g. https://your-backend.onrender.com or http://localhost:3001"
+                    id="customBackendUrlInput"
+                    className="flex-1 min-w-[240px] px-3 py-1.5 rounded-lg bg-zinc-950 border border-zinc-750 text-xs text-white font-mono placeholder:text-zinc-600 focus:border-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const input = document.getElementById('customBackendUrlInput') as HTMLInputElement;
+                      if (input) {
+                        const val = input.value.trim();
+                        if (val) {
+                          localStorage.setItem('outreach_backend_url', val);
+                        } else {
+                          localStorage.removeItem('outreach_backend_url');
+                        }
+                        window.location.reload();
+                      }
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-white hover:bg-zinc-200 text-zinc-950 text-xs font-bold transition-all cursor-pointer shadow-sm"
+                  >
+                    Save & Reconnect
+                  </button>
+                </div>
+              </div>
             </div>
           );
         })()}

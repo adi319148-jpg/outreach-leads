@@ -16,8 +16,21 @@ import {
 
 import { getDeviceId } from '../utils/deviceFingerprint';
 
+export const getApiBaseUrl = (): string => {
+  if (typeof window !== 'undefined') {
+    const custom = localStorage.getItem('outreach_backend_url');
+    if (custom && custom.trim().startsWith('http')) {
+      return custom.trim().replace(/\/+$/, '') + '/api';
+    }
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      return 'http://localhost:3001/api';
+    }
+  }
+  return '/api';
+};
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: getApiBaseUrl(),
 });
 
 // Automatically inject per-user access key, device ID and session token
@@ -294,28 +307,25 @@ export const connectWhatsAppAccount = async (
   try {
     const res = await api.post<WhatsAppAccountState>('/whatsapp/connect', { sessionId, accountName, forceRestart });
     if (res.data && res.data.status) return res.data;
-  } catch {}
+  } catch (err: any) {
+    console.error('Failed to contact WhatsApp backend:', err);
+  }
 
-  // Resilient Cloud QR generation (displays real QR code immediately)
-  const qrString = `2@${Date.now()}==,${Math.random().toString(36).substring(2, 10)},${Math.random().toString(36).substring(2, 10)}`;
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(qrString)}`;
+  const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+  const errorMsg = isLocal
+    ? 'Node.js Baileys server is starting. Please ensure "node server/dist/index.js" or "Live-Preview-No-Install.bat" is running on port 3001.'
+    : 'Vercel is a static host. To pair your real WhatsApp phone, run "Live-Preview-No-Install.bat" locally or link your live Cloud Backend URL below.';
 
-  const state: WhatsAppAccountState = {
+  return {
     id: sessionId,
     name: accountName || 'Primary WhatsApp',
-    status: 'qr_ready',
-    qrCodeDataUrl: qrUrl,
+    status: 'disconnected',
+    qrCodeDataUrl: null,
     userPhone: null,
     userName: null,
-    errorMessage: null,
-    lastActive: new Date().toISOString(),
+    errorMessage: errorMsg,
+    lastActive: null,
   };
-
-  try {
-    localStorage.setItem(`wa_state_${sessionId}`, JSON.stringify(state));
-  } catch {}
-
-  return state;
 };
 
 export const disconnectWhatsAppAccount = async (sessionId: string): Promise<WhatsAppAccountState> => {
