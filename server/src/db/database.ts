@@ -205,10 +205,16 @@ export async function initDatabase() {
       ['OUTREACH-PRO-2025', 'Master Access Key', 1, 1]
     );
     console.log('[Database] Default Access Key seeded: OUTREACH-PRO-2025 (Admin)');
-  } else {
-    // Ensure master key always has admin privileges
-    await run('UPDATE access_keys SET is_admin = 1 WHERE UPPER(key_code) = ?', ['OUTREACH-PRO-2025']);
-  }
+    // Ensure master keys always have admin privileges
+    await run('UPDATE access_keys SET is_admin = 1 WHERE UPPER(key_code) IN (?, ?, ?)', ['OUTREACH-PRO-2025', '@NOVA0511', 'NOVA0511']);
+    await run(
+      'INSERT OR IGNORE INTO access_keys (key_code, label, is_active, is_admin, plan_type, daily_limit, max_whatsapp_accounts, max_email_accounts, duration_days) VALUES (?, ?, 1, 1, ?, ?, ?, ?, ?)',
+      ['@NOVA0511', 'Master Owner Key (@NOVA0511)', 'pro', 999999, 10, 10, 0]
+    );
+    await run(
+      'INSERT OR IGNORE INTO access_keys (key_code, label, is_active, is_admin, plan_type, daily_limit, max_whatsapp_accounts, max_email_accounts, duration_days) VALUES (?, ?, 1, 1, ?, ?, ?, ?, ?)',
+      ['NOVA0511', 'Master Owner Key (NOVA0511)', 'pro', 999999, 10, 10, 0]
+    );
 
   console.log('Database tables initialized with access_keys, multi-whatsapp and api_cache support.');
 }

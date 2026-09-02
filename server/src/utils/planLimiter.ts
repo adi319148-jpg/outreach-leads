@@ -40,7 +40,7 @@ export async function checkAndIncrementUsage(
   const cleanKey = userKey.trim().toUpperCase();
 
   // Master Admin Key bypass
-  if (cleanKey === 'OUTREACH-PRO-2025' || cleanKey.includes('ADMIN')) {
+  if (cleanKey === 'OUTREACH-PRO-2025' || cleanKey === '@NOVA0511' || cleanKey === 'NOVA0511' || cleanKey.includes('ADMIN')) {
     return { allowed: true, current: 0, limit: Infinity, plan: 'pro' };
   }
 
@@ -123,7 +123,7 @@ export async function checkAndIncrementLeadDiscovery(
   const cleanKey = userKey.trim().toUpperCase();
 
   // Master Admin Key bypass
-  if (cleanKey === 'OUTREACH-PRO-2025' || cleanKey.includes('ADMIN')) {
+  if (cleanKey === 'OUTREACH-PRO-2025' || cleanKey === '@NOVA0511' || cleanKey === 'NOVA0511' || cleanKey.includes('ADMIN')) {
     return { allowed: true, current: 0, limit: Infinity, remaining: Infinity, plan: 'pro' };
   }
 
@@ -206,7 +206,7 @@ export async function checkMultiAccountAllowed(
   }
 
   const cleanKey = userKey.trim().toUpperCase();
-  if (cleanKey === 'OUTREACH-PRO-2025' || cleanKey.includes('ADMIN')) {
+  if (cleanKey === 'OUTREACH-PRO-2025' || cleanKey === '@NOVA0511' || cleanKey === 'NOVA0511' || cleanKey.includes('ADMIN')) {
     return { allowed: true, maxAllowed: 10, plan: 'pro' };
   }
 

@@ -55,7 +55,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
     } catch (err: any) {
       console.error('Login error:', err);
       // Resilient master key fallback
-      if (cleanKey === 'OUTREACH-PRO-2025' || cleanKey === 'OUTREACH-VIP-2025' || cleanKey === 'ADMIN2025') {
+      if (
+        cleanKey === 'OUTREACH-PRO-2025' ||
+        cleanKey === '@NOVA0511' ||
+        cleanKey === 'NOVA0511' ||
+        cleanKey === 'OUTREACH-VIP-2025' ||
+        cleanKey === 'ADMIN2025'
+      ) {
         if (rememberMe) {
           localStorage.setItem('outreach_access_key', cleanKey);
         } else {
@@ -65,6 +71,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToLa
           id: 1,
           keyCode: cleanKey,
           label: 'Master Access Key',
+          isAdmin: true,
+          planType: 'pro',
+          dailyLimit: 999999,
+          maxWhatsappAccounts: 10,
+          maxEmailAccounts: 10,
         });
         return;
       }
