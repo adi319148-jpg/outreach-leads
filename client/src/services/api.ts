@@ -16,6 +16,8 @@ import {
 
 import { getDeviceId } from '../utils/deviceFingerprint';
 
+export const CLOUD_BACKEND_TUNNEL_URL = 'https://188e407fb2de0f1b-103-251-48-206.serveousercontent.com';
+
 export const getApiBaseUrl = (): string => {
   if (typeof window !== 'undefined') {
     const custom = localStorage.getItem('outreach_backend_url');
@@ -25,6 +27,7 @@ export const getApiBaseUrl = (): string => {
     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
       return 'http://localhost:3001/api';
     }
+    return `${CLOUD_BACKEND_TUNNEL_URL}/api`;
   }
   return '/api';
 };
